@@ -29,12 +29,13 @@ for (const t of PC.Data.types.slice(1)) {
   const r = R.byKey[t.art];
   if (!r) fail(`${t.key}: no recipe "${t.art}" in js/art/recipes/`);
   else for (const [anim, a] of Object.entries(r.anims)) {
-    const f0 = ART.PC.Paint.frame(r.parts(anim, 0, a.n), 0, r.box[0], r.box[1], r.box[2], r.box[3], ART.PC.PAL);
+    const f0 = ART.PC.Paint.frame(r.parts(anim, 0, a.n), r.heading || 0, r.box[0], r.box[1], r.box[2], r.box[3], ART.PC.PAL);
     if (!ART.PC.Paint.trim(f0, r.box[0], r.box[1])) fail(`${t.key}: its ${anim} paints nothing`);
   }
   if (t.cost.some(c => c < 0)) fail(`${t.key}: a negative cost`);
   if (t.kind === "unit" && t.speed <= 0) fail(`${t.key}: a unit that cannot move`);
   if (t.kind === "unit" && !(r && r.anims.walk)) fail(`${t.key}: no walk to move with`);
+  if (t.kind === "building" && !(r && r.anims.build && r.anims.build.n === 3)) fail(`${t.key}: no three-stage build to rise with`);
 }
 for (const f of Object.values(PC.Data.factions)) for (const kind of ["units", "buildings"]) {
   const seen = {};

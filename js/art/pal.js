@@ -26,6 +26,11 @@ globalThis.PC = globalThis.PC || {};
     bone: ["#fffaf0", "#eae0cc", "#cabca0", "#a49478", "#786a54", "#4c4234"],
     violet: ["#f0d8ff", "#c8a0f0", "#9c70d8", "#7048b0", "#4a2c80", "#2a1850"],
     gold: ["#fff4c0", "#ffd870", "#e0a838", "#b07820", "#7a4c14", "#48280a"],
+    /* the resources: ore is amber crystal, vapour a pale steam */
+    ore: ["#fff4d0", "#ffd27a", "#f0a040", "#c86a20", "#7a3c14", "#401c0c"],
+    steam: ["#f4fffa", "#c8f8e8", "#90e8d0", "#58c0a8", "#30887a"],
+    fire: ["#fffbe0", "#ffe080", "#ffa030", "#e05018", "#902010", "#401008"],
+    smoke: ["#a8a4a0", "#807c78", "#5c5854", "#3c3a38", "#242220"],
     /* the ground */
     dirt: ["#c8a478", "#a8845c", "#8a6a48", "#6c5038", "#50382a", "#36241c"],
     grass: ["#a8c070", "#86a056", "#688044", "#4e6234", "#384628", "#242e1c"],

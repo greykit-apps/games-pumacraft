@@ -30,10 +30,59 @@ button.pc-danger:hover, button.pc-danger:focus-visible { background: var(--dange
 /* ---- the title's scene: 320x180 painted pixels, covering the screen whole-pixel-sharp ---- */
 .pc-scene { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; image-rendering: crisp-edges; }
 
-/* ---- the battlefield: 640x360 painted pixels, scaled by js/render/view.js ---- */
-#game-host { position: fixed; inset: 0; display: grid; place-items: center; background: var(--bg); }
+/* ---- the play screen: one 640x360 box, canvas and HUD together, scaled by js/render/view.js ---- */
+#game-host { position: fixed; inset: 0; background: var(--bg); overflow: hidden; }
 #game-host[hidden] { display: none; }
-.pc-screen { display: block; image-rendering: pixelated; image-rendering: crisp-edges; cursor: crosshair; }
+.pc-play { position: absolute; left: 50%; top: 50%; width: 640px; height: 360px; transform-origin: 50% 50%; font: 500 8px/1.2 var(--ui); color: var(--text); user-select: none; -webkit-user-select: none; }
+.pc-screen { position: absolute; left: 0; top: 0; width: 640px; height: 360px; image-rendering: pixelated; image-rendering: crisp-edges; cursor: crosshair; }
+.pc-play button { font: 600 8px/1 var(--ui); padding: 0; border-radius: 2px; }
+
+.pc-top { position: absolute; left: 0; top: 0; width: 640px; height: 12px; display: flex; align-items: center; gap: 12px; padding: 0 6px; box-sizing: border-box;
+  background: linear-gradient(var(--panel2), var(--panel)); border-bottom: 1px solid var(--line); font: 400 8px/1 var(--px); }
+.pc-res { display: inline-flex; align-items: center; gap: 3px; }
+.pc-res i { width: 5px; height: 5px; display: inline-block; transform: rotate(45deg); }
+.pc-ore i { background: var(--pc-ore); } .pc-vap i { background: var(--pc-vapour); } .pc-sup i { background: var(--accent); border-radius: 50%; transform: none; }
+.pc-sup.full b { color: var(--danger); }
+.pc-clock { margin-left: auto; color: var(--ink); }
+.pc-idle { color: var(--warn); min-width: 30px; }
+.pc-menu { height: 9px; padding: 0 5px !important; font-size: 7px !important; }
+
+.pc-msg { position: absolute; left: 0; right: 0; top: 240px; text-align: center; font: 400 8px/1 var(--px); color: var(--warn); text-shadow: 0 1px 0 #000, 0 0 4px #000;
+  opacity: 0; transition: opacity .3s; pointer-events: none; }
+.pc-msg.on { opacity: 1; }
+
+.pc-console { position: absolute; left: 0; top: 272px; width: 640px; height: 88px; background: linear-gradient(var(--panel2), var(--bg)); border-top: 1px solid var(--lit); }
+.pc-mini { position: absolute; left: 2px; top: 2px; width: 84px; height: 84px; image-rendering: pixelated; outline: 1px solid var(--line); cursor: pointer; background: #000; }
+.pc-sel { position: absolute; left: 92px; top: 4px; width: 448px; height: 80px; display: flex; gap: 8px; align-items: flex-start; }
+.pc-port { width: 48px; height: 48px; flex: none; display: grid; place-items: center; background: var(--bg); outline: 1px solid var(--line); }
+.pc-port canvas, .pc-cmd canvas, .pc-mi canvas, .pc-qi canvas { image-rendering: pixelated; }
+.pc-info { flex: 1; min-width: 0; }
+.pc-info h3 { margin: 0 0 3px; font: 700 9px/1 var(--ui); color: var(--text); letter-spacing: .04em; }
+.pc-info p { margin: 0 0 2px; color: var(--ink); }
+.pc-hp, .pc-prog { height: 3px; width: 120px; background: var(--line); }
+.pc-hp span { display: block; height: 100%; background: var(--good); }
+.pc-prog span { display: block; height: 100%; background: var(--accent); }
+.pc-stat { color: var(--dim); }
+.pc-queue { display: flex; gap: 2px; align-self: flex-end; }
+.pc-qi { position: relative; width: 20px; height: 20px; display: grid; place-items: center; }
+.pc-qp { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--accent); }
+.pc-multi { display: grid; grid-template-columns: repeat(12, 18px); gap: 2px; }
+.pc-mi { width: 18px; height: 18px; display: grid; place-items: center; border-bottom-width: 2px !important; }
+.pc-mi.ok { border-bottom-color: var(--good); } .pc-mi.mid { border-bottom-color: var(--warn); } .pc-mi.low { border-bottom-color: var(--danger); }
+.pc-more { color: var(--ink); align-self: center; }
+
+.pc-card { position: absolute; left: 552px; top: 4px; display: grid; grid-template-columns: repeat(3, 26px); gap: 2px; }
+.pc-cmd { position: relative; width: 26px; height: 26px; display: grid; place-items: center; }
+.pc-cmd:disabled { opacity: .25; cursor: default; }
+.pc-cmd.na { opacity: .5; }
+.pc-key { position: absolute; right: 1px; bottom: 1px; font: 400 6px/1 var(--px); color: var(--ink); }
+.pc-tip { position: absolute; right: 4px; bottom: 92px; max-width: 220px; padding: 4px 6px; background: var(--panel); outline: 1px solid var(--lit); color: var(--text); }
+.pc-tip kbd { font-size: 7px; padding: 0 2px; min-width: 0; }
+.pc-cost { display: block; margin-top: 2px; color: var(--ink); }
+.pc-cost i { display: inline-block; width: 4px; height: 4px; margin: 0 2px 0 6px; transform: rotate(45deg); }
+.pc-cost i:first-child { margin-left: 0; }
+.pc-cost .o { background: var(--pc-ore); } .pc-cost .v { background: var(--pc-vapour); } .pc-cost .s { background: var(--accent); border-radius: 50%; transform: none; }
+.pc-need { display: block; margin-top: 2px; color: var(--danger); }
 
 /* ---- Settings ---- */
 .pc-set { margin: 0 0 20px; }

@@ -54,6 +54,16 @@ globalThis.PC = globalThis.PC || {};
     /* the pathfinder's queue, as state so a save mid-search resumes the same */
     reg("pq", new Int16Array(N)); reg("pqHdr", new Int32Array(2));   /* [head, count] */
 
+    /* the economy and the fight */
+    reg("amount", new Int32Array(N));        /* a resource's ore or vapour left; a carrier's load */
+    reg("carry", new Uint8Array(N));         /* what a worker holds: 0 nothing, 1 ore, 2 vapour */
+    reg("prog", new Int32Array(N));          /* ticks into a building's construction, or its queue's head */
+    reg("queue", new Uint16Array(N * 5)); reg("qLen", new Uint8Array(N));
+    reg("rallyX", new Int32Array(N)); reg("rallyY", new Int32Array(N)); reg("rallyT", new Int32Array(N));
+    reg("home", new Int32Array(N));          /* a worker's vein, which it goes back to */
+    reg("wait", new Uint16Array(N));         /* ticks a worker has waited at a busy vein */
+    reg("kills", new Uint16Array(N));
+
     /* players */
     reg("ore", new Int32Array(P)); reg("vapour", new Int32Array(P));
     reg("supplyUsed", new Int32Array(P)); reg("supplyCap", new Int32Array(P));
@@ -61,6 +71,13 @@ globalThis.PC = globalThis.PC || {};
     /* the ground, where buildings change it */
     reg("walk", map.walk);
     reg("buildable", map.build);
+    reg("occ", new Int16Array(map.w * map.h).fill(-1));   /* the building (or resource) on each tile, by slot */
+    reg("explored", new Uint8Array(map.w * map.h));      /* a bit per player: has seen this tile */
+    /* who sees each tile now: counts per player, rebuilt every tick from the
+       units, so derived and not saved (PC.Vision) */
+    W.vis = [];
+    for (let p = 0; p < C.MAX_PLAYERS; p++) W.vis.push(p < players.length ? new Uint16Array(map.w * map.h) : null);
+    W.ev = [];   /* this tick's events for the screen and the speakers; not state */
     return W;
   };
 
@@ -74,8 +91,10 @@ globalThis.PC = globalThis.PC || {};
     },
     id: (W, i) => (W.gen[i] << C.ID_BITS) | i,
 
-    /** A new unit of type t for player p at fixed-point (x, y); its slot, or -1 if full. */
-    spawn(W, t, p, x, y) {
+    /** A new unit of type t for player p at fixed-point (x, y); its slot, or -1 if full.
+     * A building is placed on its footprint, centred on (x, y); built marks
+     * it finished (else it starts under construction and gives no supply). */
+    spawn(W, t, p, x, y, built = true) {
       if (W.hdr[1] === 0) return -1;
       const i = W.free[--W.hdr[1]];
       const T = PC.Data.types[t];
@@ -88,7 +107,13 @@ globalThis.PC = globalThis.PC || {};
       W.facing[i] = 64; W.target[i] = 0; W.cd[i] = 0;
       W.oHead[i] = 0; W.oLen[i] = 0;
       W.pathLen[i] = 0; W.pathAt[i] = 0; W.pathWant[i] = 0; W.stuck[i] = 0; W.repaths[i] = 0;
-      if (p < C.MAX_PLAYERS) { W.supplyUsed[p] += T.supply; W.supplyCap[p] += T.supplyGive; }
+      W.amount[i] = T.amount; W.carry[i] = 0; W.prog[i] = 0; W.qLen[i] = 0; W.rallyT[i] = 0; W.rallyX[i] = 0; W.rallyY[i] = 0;
+      W.home[i] = 0; W.wait[i] = 0; W.kills[i] = 0;
+      if (T.foot) {
+        PC.World.occupy(W, i, true);
+        if (!built && T.kind === "building") { W.flags[i] |= F.UNDER_CONSTRUCTION; W.hp[i] = Math.max(4, Math.floor(T.hp / 10)); }
+      }
+      if (p < C.MAX_PLAYERS) { W.supplyUsed[p] += T.supply; if (!(W.flags[i] & F.UNDER_CONSTRUCTION)) W.supplyCap[p] += T.supplyGive; }
       return i;
     },
 
@@ -96,9 +121,28 @@ globalThis.PC = globalThis.PC || {};
     kill(W, i) {
       if (!(W.flags[i] & F.ALIVE)) return;
       const T = PC.Data.types[W.type[i]], p = W.owner[i];
-      if (p < C.MAX_PLAYERS) { W.supplyUsed[p] -= T.supply; W.supplyCap[p] -= T.supplyGive; }
+      if (p < C.MAX_PLAYERS) { W.supplyUsed[p] -= T.supply; if (!(W.flags[i] & F.UNDER_CONSTRUCTION)) W.supplyCap[p] -= T.supplyGive; }
+      if (T.foot) PC.World.occupy(W, i, false);
+      W.qLen[i] = 0;
       W.flags[i] = 0; W.oLen[i] = 0; W.pathLen[i] = 0; W.pathWant[i] = 0;
       W.free[W.hdr[1]++] = i;
+    },
+
+    /** A footprint's first tile and size: [tx, ty, w, h]. */
+    footprint(W, i) {
+      const f = PC.Data.types[W.type[i]].foot, tx = Math.floor(W.x[i] / C.TILE_FP - f[0] / 2 + 0.5), ty = Math.floor(W.y[i] / C.TILE_FP - f[1] / 2 + 0.5);
+      return [tx, ty, f[0], f[1]];
+    },
+    /** Puts slot i's footprint on the ground (on) or lifts it off: walking, building and the occupancy map. */
+    occupy(W, i, on) {
+      const [tx, ty, fw, fh] = PC.World.footprint(W, i), m = W.map;
+      for (let y = ty; y < ty + fh; y++) for (let x = tx; x < tx + fw; x++) {
+        if (x < 0 || y < 0 || x >= m.w || y >= m.h) continue;
+        const k = y * m.w + x;
+        if (on) { W.walk[k] = 0; W.buildable[k] = 0; W.occ[k] = i; }
+        else if (W.occ[k] === i) { W.walk[k] = m.walkBase[k]; W.buildable[k] = m.cls[k] === PC.Map.CLS.GROUND ? 1 : 0; W.occ[k] = -1; }
+      }
+      W.navVersion = (W.navVersion || 0) + 1;
     },
 
     /** Every live slot, lowest first, into out (an Int16Array); returns the count. */
