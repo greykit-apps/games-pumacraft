@@ -27,6 +27,12 @@ globalThis.PC = globalThis.PC || {};
   const DTYPE = { normal: 0, concussive: 1, explosive: 2 };
   D.FACTOR = [[100, 100, 100], [100, 50, 25], [50, 75, 100]];
 
+  function weapon(w, key) {
+    return { name: w.name || "", dmg: q(w.dmg), dtype: DTYPE[w.type || "normal"], range: px(w.range || 0), min: px(w.min || 0), cd: w.cd || 15,
+      air: w.air !== false && !!w.air, ground: w.ground !== false, upg: q(w.upg || 0), upgrade: w.upgrade || null, hits: w.hits || 1,
+      splash: w.splash ? w.splash.map(px) : null, friendly: !!w.friendly, sfx: w.sfx || key };
+  }
+
   function addType(key, kind, faction, d) {
     if (D.byKey[key]) throw new Error("type registered twice: " + key);
     const t = {
@@ -37,9 +43,8 @@ globalThis.PC = globalThis.PC || {};
       cost: d.cost || [0, 0], buildTicks: d.buildTicks || 0,
       foot: d.foot || null, art: d.art || key, hotkey: d.hotkey || null, raw: d,
       /* weapons: damage in quarter-points, range in fixed point from edge to edge, cooldown in ticks */
-      weapons: (d.weapons || []).map(w => ({ name: w.name || "", dmg: q(w.dmg), dtype: DTYPE[w.type || "normal"], range: px(w.range || 0), cd: w.cd || 15,
-        air: w.air !== false && !!w.air, ground: w.ground !== false, upg: q(w.upg || 0), upgrade: w.upgrade || null, hits: w.hits || 1,
-        splash: w.splash ? w.splash.map(px) : null, sfx: w.sfx || key })),
+      weapons: (d.weapons || []).map(w => weapon(w, key)),
+      siege: d.siege ? { deploy: d.siege.deploy, weapons: d.siege.weapons.map(w => weapon(w, key + "_siege")) } : null,
       armorUpgrade: d.armorUpgrade || null, bio: !!d.bio, mech: !!d.mech,
       stimCost: q(d.stimCost || 10),
       energy: d.energy || 0, energyStart: d.energyStart === undefined ? 50 : d.energyStart, abilities: d.abilities || [], researches: d.researches || [],
@@ -76,7 +81,7 @@ globalThis.PC = globalThis.PC || {};
     for (const t of D.types.slice(1)) {
       for (const k of ["trains", "builds", "req"]) t[k] = t[k].map(x => typeof x === "number" ? x : D.type(x).id);
       t.researches = t.researches.map(x => typeof x === "number" ? x : D.upgrade(x).id);
-      for (const w of t.weapons) if (typeof w.upgrade === "string") w.upgrade = D.upgrade(w.upgrade).id;
+      for (const w of t.weapons.concat(t.siege ? t.siege.weapons : [])) if (typeof w.upgrade === "string") w.upgrade = D.upgrade(w.upgrade).id;
       if (typeof t.armorUpgrade === "string") t.armorUpgrade = D.upgrade(t.armorUpgrade).id;
     }
     for (const u of D.upgrades) {

@@ -52,10 +52,12 @@ globalThis.PC = globalThis.PC || {};
     return Math.max(0, Fx.len(dx, dy) - ti.r - tj.r);
   };
 
+  /** i's weapons as it stands now: dug in, a sieged unit's own. */
+  K.weapons = (W, i) => { const t = PC.Data.types[W.type[i]]; return W.mode[i] === 1 && t.siege ? t.siege.weapons : t.weapons; };
   /** The weapon i would use on j, or null. */
   K.weapon = (W, i, j) => {
-    const ws = PC.Data.types[W.type[i]].weapons, air = W.flags[j] & F.AIR;
-    for (const w of ws) if (air ? w.air : w.ground) return w;
+    const air = W.flags[j] & F.AIR;
+    for (const w of K.weapons(W, i)) if (air ? w.air : w.ground) return w;
     return null;
   };
   const hostile = (W, i, j) => {
@@ -70,9 +72,11 @@ globalThis.PC = globalThis.PC || {};
   K.acquire = (W, i, r) => {
     let best = -1, bestD = Infinity;
     K.near(W, W.x[i], W.y[i], r + 4 * C.TILE_FP, j => {
-      if (j === i || !(W.flags[j] & F.ALIVE) || !hostile(W, i, j) || !K.weapon(W, i, j)) return;
-      if (!PC.Vision.seesUnit(W, W.owner[i], j)) return;
+      if (j === i || !(W.flags[j] & F.ALIVE) || !hostile(W, i, j)) return;
+      const w = K.weapon(W, i, j);
+      if (!w || !PC.Vision.seesUnit(W, W.owner[i], j)) return;
       const d = K.gap(W, i, j);
+      if (d < w.min) return;
       /* fighters before buildings, then nearest, then lowest slot */
       const score = d + ((W.flags[j] & F.BUILDING) && !PC.Data.types[W.type[j]].weapons.length ? 8 * C.TILE_FP : 0);
       if (d <= r && score < bestD) { bestD = score; best = j; }
@@ -123,6 +127,7 @@ globalThis.PC = globalThis.PC || {};
     const w = K.weapon(W, i, j);
     if (!w || !PC.Vision.seesUnit(W, W.owner[i], j)) return false;
     const gap = K.gap(W, i, j), t = PC.Data.types[W.type[i]];
+    if (gap < w.min) return false;   /* too close for this gun (a dug-in howitzer's) */
     W.facing[i] = Fx.heading(W.x[j] - W.x[i], W.y[j] - W.y[i]);
     if (gap <= w.range) {
       W.flags[i] &= ~F.MOVING; W.pathLen[i] = 0;
@@ -150,7 +155,8 @@ globalThis.PC = globalThis.PC || {};
   function splash(W, i, j, w, x, y) {
     const [r1, r2, r3] = w.splash, ground = !(W.flags[j] & F.AIR);
     K.near(W, x, y, r3, k => {
-      if (k === j || k === i || !(W.flags[k] & F.ALIVE) || !hostile(W, i, k) || (W.flags[k] & F.RESOURCE)) return;
+      /* most splash spares friends; a siege shell spares no one but the gun that fired it */
+      if (k === j || k === i || !(W.flags[k] & F.ALIVE) || (W.flags[k] & F.RESOURCE) || (!w.friendly && !hostile(W, i, k))) return;
       if (!(W.flags[k] & F.AIR) !== ground) return;
       const d = Math.max(0, Fx.len(W.x[k] - x, W.y[k] - y) - PC.Data.types[W.type[k]].r);
       const pct = d <= r1 ? 100 : d <= r2 ? 50 : d <= r3 ? 25 : 0;

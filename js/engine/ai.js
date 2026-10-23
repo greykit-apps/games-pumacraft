@@ -185,6 +185,21 @@ globalThis.PC = globalThis.PC || {};
       if (shot.length >= 3) say(W, p, CMD.ABILITY, shot.map(id), { tgt: PC.Orders.ABILITY.stim });
     }
 
+    /* ---- siege: guns dig in with an enemy near, and pack up when there is none for a while ---- */
+    const siegeUp = PC.Data.upByKey.a_siege;
+    if (siegeUp && W.upg[p * 64 + siegeUp.id]) {
+      const dig = [], pack = [];
+      for (const i of mine.army) {
+        const t = TT[W.type[i]];
+        if (!t.siege) continue;
+        const near = PC.Combat.acquire(W, i, 11 * C.TILE_FP) >= 0;
+        if (W.mode[i] === 0 && near) dig.push(id(i));
+        else if (W.mode[i] === 1 && !near && !W.target[i]) pack.push(id(i));
+      }
+      if (dig.length) say(W, p, CMD.ABILITY, dig, { tgt: PC.Orders.ABILITY.siege, x: 0 });
+      if (pack.length) say(W, p, CMD.ABILITY, pack, { tgt: PC.Orders.ABILITY.siege, x: 2 });
+    }
+
     /* ---- the army ---- */
     const [rx, ry] = rally(W, home);
     const att = m[b + K.ATT_TICK];
@@ -195,7 +210,9 @@ globalThis.PC = globalThis.PC || {};
       return;
     }
     const [first, more] = (def.waves[pl.ai] || def.waves.normal);
-    const need = first + more * m[b + K.WAVES];
+    /* waves grow to a point; a bot whose income has dried up (no ore near its halls and little in hand) throws in everything it has */
+    let need = Math.min(70, first + more * m[b + K.WAVES]);
+    if (veins === 0 && W.ore[p] < 100) need = 1;
     let armySupply = 0;
     for (const i of mine.army) armySupply += TT[W.type[i]].supply;
     if (!m[b + K.ATTACKING] && armySupply >= need) {

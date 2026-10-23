@@ -64,6 +64,8 @@ globalThis.PC = globalThis.PC || {};
     reg("wait", new Uint16Array(N));         /* ticks a worker has waited at a busy vein */
     reg("kills", new Uint16Array(N));
     reg("stim", new Uint16Array(N));         /* ticks of an adrenal shot left */
+    reg("mode", new Uint8Array(N));          /* 0 as it is; 1 dug in (siege); 2 digging in; 3 packing up */
+    reg("modeT", new Uint16Array(N));        /* ticks left of digging in or packing up */
 
     /* players */
     reg("ai", new Int32Array(C.MAX_PLAYERS * 32));   /* each computer player's memory (PC.AI) */
@@ -111,7 +113,7 @@ globalThis.PC = globalThis.PC || {};
       W.oHead[i] = 0; W.oLen[i] = 0;
       W.pathLen[i] = 0; W.pathAt[i] = 0; W.pathWant[i] = 0; W.stuck[i] = 0; W.repaths[i] = 0;
       W.amount[i] = T.amount; W.carry[i] = 0; W.prog[i] = 0; W.qLen[i] = 0; W.rallyT[i] = 0; W.rallyX[i] = 0; W.rallyY[i] = 0;
-      W.home[i] = 0; W.wait[i] = 0; W.kills[i] = 0; W.stim[i] = 0;
+      W.home[i] = 0; W.wait[i] = 0; W.kills[i] = 0; W.stim[i] = 0; W.mode[i] = 0; W.modeT[i] = 0;
       W.energy[i] = T.energy ? Math.min(T.energy, T.energyStart) : 0;
       if (T.foot) {
         PC.World.occupy(W, i, true);

@@ -178,4 +178,65 @@
       ]);
     },
   });
+  /* ---- the Howitzer: tracks and a twin cannon; dug in, outriggers down and one long gun up ---- */
+  const howitzer = (anim, f, n) => {
+    if (anim === "death") {
+      const k = f / (n - 1);
+      return [ball([0, 0, 3], [9 + k * 4, 7 + k * 4, 4 + k * 3], k < 0.5 ? "fire" : "smoke", { glow: k < 0.5, step: Math.floor(k * 4) }), box([-2 - k * 3, 2, 2], [8, 3, 1.5], "gunmetal", { rot: [k * 40, 0, 0] })];
+    }
+    /* d: 0 on its tracks, 1 dug in; the deploy frames go between */
+    const d = anim === "siege" ? 1 : anim === "deploy" ? (f + 1) / (n + 1) : 0;
+    const roll = anim === "walk" ? (f % 2) * 0.4 : 0;
+    const parts = [
+      box([0, -6, 2.4], [10, 2.4, 2.4], "rubber"), box([0, 6, 2.4], [10, 2.4, 2.4], "rubber"),
+      box([0, -6, 2.4 + roll], [10.4, 0.6, 2.5], "gunmetal"), box([0, 6, 2.4 + roll], [10.4, 0.6, 2.5], "gunmetal"),
+      box([0, 0, 6], [9, 5.4, 2.4], "steel"),
+      box([-6, 0, 8.6], [3, 4.6, 0.4], "team"),
+      /* the turret */
+      cyl([1, 0, 10], [5, 5, 1.8 + d], "steel"),
+      box([1, 0, 11.7 + d], [3, 3, 0.3], "team"),
+    ];
+    if (d < 1) {
+      const recoil = anim === "attack" && f === 0 ? -1.5 : 0;
+      parts.push(box([8 + recoil, -1.4, 10], [5, 0.7, 0.7], "gunmetal"), box([8 + recoil, 1.4, 10], [5, 0.7, 0.7], "gunmetal"));
+      if (anim === "attack" && f === 0) parts.push(ball([14, 0, 10], [2, 2.4, 1.6], "fire", { glow: true, step: 1 }));
+    }
+    if (d > 0) {
+      /* outriggers down, and the long gun lifted */
+      for (const [x, y] of [[-8, -9], [-8, 9], [8, -9], [8, 9]]) parts.push(box([x * d, y, 2], [1.5, 1.5 * d + 0.3, 2], "gunmetal", { rot: [0, 0, y > 0 ? -30 * d : 30 * d] }));
+      parts.push(box([9 * d + 2, 0, 12 + 4 * d], [9 * d + 1, 1, 1], "gunmetal", { rot: [0, -18 * d, 0] }));
+      if (anim === "siege" && f === 1) parts.push(ball([21, 0, 19], [3, 3, 2.4], "fire", { glow: true, step: 0 }));
+    }
+    return parts;
+  };
+  add("a_howitzer", {
+    sheet: "units_a", facings: 16, box: [64, 56, 32, 36],
+    anims: { idle: { n: 1, fps: 1 }, walk: { n: 2, fps: 10 }, attack: { n: 2, fps: 8 }, deploy: { n: 3, fps: 4 }, siege: { n: 2, fps: 4 }, death: { n: 5, fps: 10, facings: 1 } },
+    parts: howitzer,
+  });
+
+  /* ---- the Strider: a walker with an autocannon on one arm and missile pods on its shoulders ---- */
+  add("a_strider", {
+    sheet: "units_a", facings: 16, box: [56, 56, 28, 38],
+    anims: { idle: { n: 1, fps: 1 }, walk: { n: 4, fps: 8 }, attack: { n: 2, fps: 10 }, death: { n: 5, fps: 10, facings: 1 } },
+    parts(anim, f, n) {
+      if (anim === "death") { const k = f / (n - 1); return [ball([0, 0, 6 - k * 4], [7 + k * 3, 6 + k * 3, 5 + k * 2], k < 0.5 ? "fire" : "smoke", { glow: k < 0.5, step: Math.floor(k * 4) })]; }
+      const step = anim === "walk" ? swing(f, n, 2.2) : 0, bob = anim === "walk" ? Math.abs(swing(f, n, 0.6)) : 0;
+      const parts = [
+        /* legs, swinging, each a thigh and a shin */
+        box([step, -3.5, 4], [1.5, 1.3, 4], "gunmetal"), box([-step, 3.5, 4], [1.5, 1.3, 4], "gunmetal"),
+        box([step + 1, -3.5, 0.6], [2.4, 1.6, 0.6], "rubber"), box([-step + 1, 3.5, 0.6], [2.4, 1.6, 0.6], "rubber"),
+        /* the body and the pilot's glass */
+        box([0, 0, 10 + bob], [4.5, 4.5, 3], "steel"),
+        box([3.6, 0, 11 + bob], [1.2, 2.4, 1.4], "glass", { glow: true, step: 1 }),
+        box([-2, 0, 13.4 + bob], [2.5, 3.5, 0.5], "team"),
+        /* the cannon arm, and the pods */
+        box([3.5, 6, 9 + bob], [5, 1, 1], "gunmetal"),
+        box([-1, -6, 13 + bob], [3, 2, 2], "steel"), box([-1, 6.5, 13.5 + bob], [2.4, 1.6, 1.6], "steel"),
+        box([2, -6, 13 + bob], [0.4, 1.5, 1.5], "red", { glow: true, step: 2 }),
+      ];
+      if (anim === "attack" && f === 0) parts.push(ball([9, 6, 9 + bob], [1.4, 1.4, 1.2], "fire", { glow: true, step: 1 }), ball([3, -6, 15], [1.2, 1.2, 1.2], "amber", { glow: true, step: 0 }));
+      return parts;
+    },
+  });
 })();

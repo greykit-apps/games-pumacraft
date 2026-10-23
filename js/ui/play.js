@@ -39,6 +39,7 @@
     stim: ["......#.", ".....#.#", "....###.", "...###..", "..###...", ".###....", "##......", "#......."],
     weapons: ["...##...", "...##...", "..####..", "..####..", "..####..", "..####..", ".######.", "...##..."],
     armour: [".######.", "########", "########", "########", ".######.", ".######.", "..####..", "...##..."],
+    siege: ["...##...", "..####..", "...##...", "...##...", ".######.", "##.##.##", "#..##..#", "#......#"],
   };
   function glyph(name, colour = "#54f2ff") {
     const c = document.createElement("canvas"); c.width = c.height = 16;
@@ -247,6 +248,13 @@
     if (stimUp && s.some(i => T()[W.type[i]].abilities.includes("stim")))
       b[5] = { key: "T", glyph: "stim", tip: "Adrenal shot", note: W.upg[P.me * 64 + stimUp.id] ? "Faster, and firing twice as often, for eleven seconds. Costs 10 health (a torcher 20)." : "Research it at an Academy first.",
         req: W.upg[P.me * 64 + stimUp.id] ? [] : [stimUp.at], act: () => { if (W.upg[P.me * 64 + stimUp.id]) order(CMD.ABILITY, { tgt: PC.Orders.ABILITY.stim }); } };
+    /* siege mode: dig in, or pack up */
+    const siegeUp = PC.Data.upByKey.a_siege;
+    if (siegeUp && s.some(i => T()[W.type[i]].siege)) {
+      const dug = s.some(i => W.mode[i] === 1), has = W.upg[P.me * 64 + siegeUp.id];
+      b[7] = { key: "E", glyph: "siege", tip: dug ? "Pack up" : "Siege mode", note: has ? (dug ? "Back on its tracks: it can move again." : "Dig in: it cannot move, and its shells reach twelve tiles and burst.") : "Research Siege mode at a Motor Pool first.",
+        req: has ? [] : [siegeUp.at], act: () => { if (has) order(CMD.ABILITY, { tgt: PC.Orders.ABILITY.siege, x: dug ? 2 : 0 }); } };
+    }
     if (workers) {
       b[6] = { key: "G", glyph: "gather", tip: "Gather ore or vapour", act: () => { P.mode = { kind: "target", cmd: CMD.GATHER }; } };
       b[7] = { key: "C", glyph: "ret", tip: "Bring the load home", act: () => order(CMD.RETURN) };

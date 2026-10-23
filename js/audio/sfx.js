@@ -63,6 +63,10 @@
     mine: (ac, d, t) => tone(ac, d, t, { type: "sine", f0: 1900 + Math.random() * 500, dur: 0.06, gain: 0.03 }),
     deposit: (ac, d, t) => tone(ac, d, t, { type: "triangle", f0: 520, f1: 780, dur: 0.06, gain: 0.03 }),
     stim: (ac, d, t) => { hiss(ac, d, t, { dur: 0.08, gain: 0.12, f: 3000, q: 6 }); tone(ac, d, t + 0.05, { type: "sawtooth", f0: 200, f1: 600, dur: 0.2, gain: 0.06 }); },
+    a_howitzer: (ac, d, t) => { tone(ac, d, t, { type: "sine", f0: 140, f1: 50, dur: 0.25, gain: 0.35 }); hiss(ac, d, t, { dur: 0.25, gain: 0.3, f: 1200, q: 0.6, type: "lowpass", f1: 250 }); },
+    a_howitzer_siege: (ac, d, t) => { tone(ac, d, t, { type: "sine", f0: 90, f1: 30, dur: 0.6, gain: 0.5 }); hiss(ac, d, t, { dur: 0.7, gain: 0.45, f: 900, q: 0.4, type: "lowpass", f1: 100 }); },
+    a_strider: (ac, d, t) => { tone(ac, d, t, { type: "square", f0: 520, f1: 260, dur: 0.08, gain: 0.1 }); hiss(ac, d, t, { dur: 0.1, gain: 0.2, f: 2600, q: 0.8 }); },
+    siege: (ac, d, t) => { tone(ac, d, t, { type: "sawtooth", f0: 90, f1: 140, dur: 0.6, gain: 0.08 }); hiss(ac, d, t + 0.5, { dur: 0.1, gain: 0.2, f: 300, type: "lowpass" }); },
     heal: (ac, d, t) => tone(ac, d, t, { type: "sine", f0: 880, f1: 1320, dur: 0.12, gain: 0.03 }),
     a_torcher: (ac, d, t) => hiss(ac, d, t, { dur: 0.3, gain: 0.28, f: 700, q: 0.5, type: "lowpass", f1: 2400 }),
     /* the radio chirp: notes as a list of frequencies */
@@ -111,6 +115,7 @@
       else if (k === "die") { const t = T[e[4]], x = e[2] / C.ONE, y = e[3] / C.ONE; S.play(t.foot || t.size === 2 ? "dieBig" : "dieSmall", x, y); }
       else if (k === "built" && W.owner[a] === me) S.play("built");
       else if ((k === "trained" || k === "researched") && W.owner[a] === me) S.play(k === "researched" ? "built" : "trained");
+      else if (k === "siege") { const [x, y] = at(a); S.play("siege", x, y); }
       else if (k === "stim") { const [x, y] = at(a); S.play("stim", x, y); }
       else if (k === "heal") { const [x, y] = at(a); S.play("heal", x, y); }
       else if (k === "error" && a === me) S.play("error");
