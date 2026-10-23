@@ -1,0 +1,91 @@
+# greykit.com/games/pumacraft/ -- validate, then deploy.
+#
+# Auth for the deploy comes from the greykit-app group's DREAMHOST_SSH_KEY
+# (File), DREAMHOST_HOST and DREAMHOST_USERNAME, all protected, so they only
+# reach pipelines on protected branches: main.
+#
+# What ships is index.html, css/, js/, fonts/, the icons, the manifest and
+# og.png. tools/, docs/ and screenshots/ stay in the repo.
+stages:
+  - validate
+  - deploy
+
+# Every local file the page and its manifest name must be in the repo
+# (games-meta STANDARD.md §10). Runs on every branch and merge request, and
+# on main ahead of deploy, so a missing asset stops the deploy instead of
+# 404ing on the live site.
+validate:
+  stage: validate
+  image: node:20-alpine
+  script:
+    - node tools/check-assets.js
+    # every script parses
+    - for f in js/*.js tools/*.js; do node --check "$f"; done
+    # every script and stylesheet URL carries its content hash, so Cloudflare's 30-day cache never serves an old one
+    - node tools/stamp-assets.js --check
+
+deploy:
+  stage: deploy
+  image: debian:bookworm-slim
+  only:
+    - main
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq openssh-client rsync > /dev/null 2>&1
+    - mkdir -p ~/.ssh
+    - cp "$DREAMHOST_SSH_KEY" ~/.ssh/id_rsa
+    - echo "" >> ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    # Host key is PINNED rather than scanned. A bare `ssh-keyscan` opens a burst
+    # of parallel connections (one per host-key type), which trips an SSH-scan
+    # detector on the self-hosted runner's network path; outbound port 22 to the
+    # target is then blackholed for ~3 minutes -- long enough for the rsync below
+    # to time out, which is what makes the job die with exit 255 after 133s.
+    # Pinning costs zero connections and is also strictly safer than trusting
+    # whatever key happens to answer at deploy time.
+    # If DreamHost rebuilds the VPS this must be re-pinned: the job will then
+    # fail loudly on a host key mismatch rather than silently trust a new key.
+    - echo "$DREAMHOST_HOST ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEtxw582rJAeTpXMTRJeGJ6GHis19hHmWWBwEL1bCbYd" > ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
+    # ConnectTimeout turns a blocked port into a 15s failure instead of a 133s
+    # one. It lives in ssh_config rather than on each command line so that
+    # rsync's own ssh picks it up too, without touching any rsync invocation.
+    - printf 'Host *\n  ConnectTimeout 15\n  BatchMode yes\n' > ~/.ssh/config
+    - chmod 600 ~/.ssh/config
+    # Outbound port 22 to this host gets blackholed for minutes once too many
+    # SSH connections go to it in a short window -- a mass deploy trips it even
+    # with no ssh-keyscan anywhere. Retry with long gaps so a queued deploy rides
+    # the block out instead of going red. The gaps are deliberately long: probing
+    # harder re-arms the block rather than clearing it.
+    - |
+      puma_rsync() {
+        attempt=1
+        until rsync "$@"; do
+          if [ "$attempt" -ge 3 ]; then
+            echo "rsync failed after $attempt attempts" >&2
+            return 1
+          fi
+          echo "attempt $attempt failed; waiting 200s for any port-22 block to clear"
+          attempt=$((attempt + 1))
+          sleep 200
+        done
+      }
+  script:
+    # Single destination, so this job costs exactly one SSH connection.
+    #
+    # --delete-excluded is load-bearing: plain --delete does NOT delete paths
+    # matched by --exclude, so anything excluded here is also removed from the
+    # live site, which is what "do not publish this" has to mean.
+    #
+    # PRODUCT.md, DESIGN.md, .impeccable/ and .impeccable.md are design notes
+    # the impeccable skill writes into the repo root (games-meta STANDARD.md
+    # §12). They stay in the repo and off the live site.
+    - puma_rsync -avz --delete --delete-excluded --exclude='.git' --exclude='.claude' --exclude='PRODUCT.md' --exclude='DESIGN.md' --exclude='.impeccable' --exclude='.impeccable.md' --exclude='.gitlab-ci.yml' --exclude='tools' --exclude='docs' --exclude='screenshots' --exclude='.gitignore' --exclude='.gitattributes' --exclude='.DS_Store' ./ ${DREAMHOST_USERNAME}@${DREAMHOST_HOST}:/home/${DREAMHOST_USERNAME}/greykit.com/games/pumacraft/
+  # environment: lets GitLab's "Prevent outdated deployment jobs" act on this
+  # job, so a deploy from an older pipeline that starts after a newer one has
+  # deployed fails instead of republishing stale files. resource_group: runs
+  # deploys one at a time, so an older one still running when a newer one
+  # starts cannot finish last. Together, the last merge is the one left live.
+  environment:
+    name: production
+    url: https://greykit.com/games/pumacraft/
+  resource_group: production

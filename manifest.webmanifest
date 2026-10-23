@@ -1,0 +1,14 @@
+{
+  "name": "PumaCraft",
+  "short_name": "PumaCraft",
+  "description": "Real-time strategy in the Grey Reach: three asymmetric powers, bases, armies and an economy to run, painted 16-bit pixel art and a score that follows the battle. In the making.",
+  "start_url": ".",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#05070f",
+  "theme_color": "#05070f",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" },
+    { "src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}

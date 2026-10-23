@@ -1,0 +1,61 @@
+/* PumaCraft -- the page's own styles. The palette is canon's (css/gk-tokens.css,
+ * games-meta STANDARD.md §4); nothing here gives a canon name another value. */
+@font-face { font-family: "Barlow Semi Condensed"; font-weight: 500; font-display: swap; src: url(../fonts/barlow-semi-condensed-500.woff2) format("woff2"); }
+@font-face { font-family: "Barlow Semi Condensed"; font-weight: 600; font-display: swap; src: url(../fonts/barlow-semi-condensed-600.woff2) format("woff2"); }
+@font-face { font-family: "Barlow Semi Condensed"; font-weight: 700; font-display: swap; src: url(../fonts/barlow-semi-condensed-700.woff2) format("woff2"); }
+@font-face { font-family: "Pixelify Sans"; font-weight: 400 700; font-display: swap; src: url(../fonts/pixelify-sans.woff2) format("woff2"); }
+
+:root {
+  --ui: "Barlow Semi Condensed", "Bahnschrift SemiCondensed", "Bahnschrift", "Arial Narrow", "Segoe UI", system-ui, sans-serif;
+  --px: "Pixelify Sans", ui-monospace, monospace;
+  --pc-ore: #ffb000;
+  --pc-vapour: #4ade6a;
+}
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: var(--ui); font-size: 16px; overflow: hidden; }
+#title-host .gk-title { --gk-title-hi: var(--accent); }
+a, .gk-credit a { color: var(--accent); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.gk-credit { color: var(--ink); }
+kbd { display: inline-block; min-width: 1.4em; padding: 0 5px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 3px;
+  background: var(--panel2); color: var(--text); font: 600 13px/1.5 var(--ui); text-align: center; }
+
+/* ---- buttons, wherever the game draws one (the title's menu keeps canon's own) ---- */
+button { font: 600 15px/1.2 var(--ui); color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 4px;
+  cursor: pointer; padding: 7px 14px; transition: background-color .12s, border-color .12s, color .12s; }
+button:hover { background: var(--panel); border-color: var(--lit); }
+button:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+button.pc-danger { background: transparent; border-color: color-mix(in srgb, var(--danger) 70%, transparent); color: var(--danger); }
+button.pc-danger:hover, button.pc-danger:focus-visible { background: var(--danger); border-color: var(--danger); color: var(--bg); box-shadow: none; }
+.gk-sheet [data-x] { padding: 2px 9px; font-size: 18px; line-height: 1; }
+
+/* ---- the title's scene: 320x180 painted pixels, covering the screen whole-pixel-sharp ---- */
+.pc-scene { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; image-rendering: crisp-edges; }
+
+/* ---- Settings ---- */
+.pc-set { margin: 0 0 20px; }
+.pc-set h3 { margin: 0 0 10px; font: 700 13px/1 var(--ui); letter-spacing: .18em; text-transform: uppercase; color: var(--steel); }
+.pc-row { display: flex; align-items: center; gap: 12px; margin: 0 0 8px; flex-wrap: wrap; }
+.pc-note { margin: 0; color: var(--dim); font-size: 14px; }
+.pc-sw { display: inline-flex; align-items: center; gap: 10px; min-width: 110px; justify-content: space-between; }
+.pc-knob { position: relative; width: 30px; height: 16px; border-radius: 8px; background: var(--line); transition: background .15s; }
+.pc-knob::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--ink); transition: transform .15s, background .15s; }
+.pc-sw[aria-pressed="true"] .pc-knob { background: var(--lit); }
+.pc-sw[aria-pressed="true"] .pc-knob::after { transform: translateX(14px); background: var(--accent); }
+.pc-seg { gap: 0; }
+.pc-seg button { border-radius: 0; margin-left: -1px; }
+.pc-seg button:first-child { border-radius: 4px 0 0 4px; margin-left: 0; }
+.pc-seg button:last-child { border-radius: 0 4px 4px 0; }
+.pc-seg button[aria-pressed="true"] { color: var(--bg); background: var(--accent); border-color: var(--accent); }
+.pc-keys { border-collapse: collapse; margin: 0 0 12px; }
+.pc-keys td { padding: 4px 14px 4px 0; vertical-align: top; }
+.pc-keys td:first-child { white-space: nowrap; }
+
+/* ---- the desktop gate: a phone or a small window gets a notice, not the game ---- */
+#small { display: none; position: fixed; inset: 0; z-index: 2147483600; flex-direction: column; align-items: center; justify-content: center;
+  padding: 24px; text-align: center; background: var(--bg); }
+#small h1 { margin: 18px 0 10px; font: 700 22px/1.2 var(--ui); }
+#small p { max-width: 34ch; margin: 0 0 12px; color: var(--ink); line-height: 1.5; }
+#small .px { image-rendering: pixelated; }
+@media (max-width: 959px), (hover: none) and (pointer: coarse) {
+  #small { display: flex; }
+  #title-host { display: none; }
+}
