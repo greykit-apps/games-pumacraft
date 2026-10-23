@@ -14,6 +14,12 @@ Plain scripts, no build step, nothing fetched at play time. Serve the repo root 
 | `js/engine/` | The simulation: DOM-free and deterministic. `const.js` says the rules that keep it so. |
 | `js/data/` | Each faction's units and buildings, in the original's measures (`js/engine/data.js` converts them). |
 | `js/maps/` | Maps, one character a tile (`js/engine/map.js` has the key). |
+| `js/art/paint.js`, `js/art/pal.js` | The painter and its palette: sprites are small 3D part models, ray-cast a pixel at a time and lit by one sun. |
+| `js/art/recipes/` | What every sprite and ground tile is painted from. |
+| `art/`, `js/art/atlas.js` | The baked sheets and where every frame is in them. Written by `tools/bake-art.js`; never edit by hand. |
+| `js/art/sheets.js` | Loads the sheets and repaints the team magentas in each player's colour. |
+| `js/render/` | The ground in cached chunks, the units, the view and the frame loop. |
+| `js/sandbox.js` | `?sandbox`: the Proving Ground with two armies, for watching the engine and the art together. |
 | `tools/png.js` | The PNG and ICO writers. |
 | `tools/lib.js` | Loads the engine headless, in `index.html`'s own script order. |
 
@@ -21,7 +27,11 @@ Plain scripts, no build step, nothing fetched at play time. Serve the repo root 
 
 The same seed and the same commands give the same game, tick for tick, on any machine: that is what saves, replays, the headless checks and one day lockstep multiplayer stand on. So under `js/engine/` positions are integers in fixed point (1/256 px), angles come from the committed tables in `tables.js` (written by `tools/gen-tables.js`), roots from `isqrt`, chance from the state's own PRNG, and every piece of state is a typed array registered in `W.state` so it is saved and hashed. The UI and the AI change the game only through `PC.Orders.issue`.
 
-The art baker, the renderer and the rest arrive milestone by milestone.
+## The art
+
+Nothing is drawn by hand and nothing is drawn at play time: every sprite is a recipe in `js/art/recipes/`, baked to PNG sheets that are committed. After changing a recipe or the palette, run `node tools/bake-art.js` and commit `art/`, `js/art/atlas.js` and `index.html` together; CI's `--check` fails on a stale sheet. `tools/sheet.html` shows every recipe live, every facing and frame, in any team colour. `node tools/bake-art.js --preview KEY OUT.png [SCALE] [ANIM]` writes a contact sheet. The five magentas of the `team` ramp belong to team colour alone.
+
+The rest arrives milestone by milestone.
 
 ## Checks
 
@@ -31,6 +41,8 @@ node tools/stamp-assets.js        # restamp script and stylesheet URLs after an 
 node tools/lint-determinism.js    # nothing in js/engine/ that can differ between machines
 node tools/gen-tables.js          # rewrite the trig tables (CI runs --check)
 node tools/sim-check.js --seeds 3 # played headless: twice alike, a save played on, the replay, units where they may stand
+node tools/data-check.js          # every unit has art, no hotkey twice
+node tools/bake-art.js --check    # the sheets are what the recipes paint
 ```
 
 ## Icons and the share card

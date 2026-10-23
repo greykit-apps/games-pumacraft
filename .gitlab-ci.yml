@@ -20,12 +20,15 @@ validate:
   script:
     - node tools/check-assets.js
     # every script parses
-    - for f in js/*.js js/engine/*.js js/data/*.js js/maps/*.js tools/*.js; do node --check "$f"; done
+    - for f in js/*.js js/engine/*.js js/data/*.js js/maps/*.js js/art/*.js js/art/recipes/*.js js/render/*.js tools/*.js; do node --check "$f"; done
     # the engine touches only integers and its own tables, and the tables are what the generator writes
     - node tools/lint-determinism.js
     - node tools/gen-tables.js --check
     # played headless: the same game twice, a save played on, the replay, every unit where it may stand
     - node tools/sim-check.js --seeds 3
+    # every unit has art, and the committed sheets are exactly what the recipes paint
+    - node tools/data-check.js
+    - node tools/bake-art.js --check
     # every script and stylesheet URL carries its content hash, so Cloudflare's 30-day cache never serves an old one
     - node tools/stamp-assets.js --check
 

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PumaCraft: the sprite sheet</title>
+<meta name="color-scheme" content="dark">
+<!-- Every recipe, painted live by the same painter the baker uses: each
+     animation in every facing, in any team's colour, at any zoom, over any
+     ground. Serve the repo over http and open tools/sheet.html. Not deployed.
+     ?key=a_trooper shows one; ?zoom=4; ?team=1 -->
+<style>
+  body { margin: 0; padding: 16px; background: #0b1017; color: #e9e4d8; font: 14px/1.4 system-ui, sans-serif; }
+  h1 { font-size: 18px; margin: 0 0 4px; } p { margin: 0 0 12px; color: #9aa3ad; }
+  .ctl { display: flex; gap: 12px; margin: 0 0 16px; align-items: center; flex-wrap: wrap; }
+  h2 { font-size: 14px; margin: 18px 0 6px; color: #94a0c4; }
+  .row { display: flex; gap: 2px; flex-wrap: wrap; align-items: flex-end; padding: 6px; border-radius: 4px; background: #6c5a44; margin: 0 0 2px; }
+  .row.grass { background: #50623a; } .row.dark { background: #1c1a22; }
+  .lab { width: 70px; color: #f0e6d0; font-size: 12px; align-self: center; }
+  canvas { image-rendering: pixelated; }
+</style>
+</head>
+<body>
+<h1>PumaCraft: the sprite sheet</h1>
+<p>Painted live from <code>js/art/recipes/</code>, as <code>tools/bake-art.js</code> paints them.</p>
+<div class="ctl">
+  <label>Recipe <select id="key"></select></label>
+  <label>Zoom <select id="zoom"><option>2</option><option selected>3</option><option>4</option><option>6</option></select></label>
+  <label>Team <select id="team"></select></label>
+  <label>Ground <select id="ground"><option value="">dirt</option><option value="grass">scrub</option><option value="dark">night</option></select></label>
+</div>
+<div id="out"></div>
+<script src="../js/art/paint.js"></script>
+<script src="../js/art/pal.js"></script>
+<script src="../js/art/recipes.js"></script>
+<script src="../js/art/recipes/a_units.js"></script>
+<script src="../js/art/recipes/terrain.js"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id), q = new URLSearchParams(location.search);
+const TEAMS = [["#ffb0a8", "#ff5a4c", "#d8322a", "#9a1c1c", "#5c1010"], ["#a8d0ff", "#4c9cff", "#2a6ad8", "#1c449a", "#10285c"],
+  ["#b0ffe0", "#40e0b0", "#20a880", "#147458", "#0c4434"], ["#e8c0ff", "#b070f0", "#8048c8", "#56308c", "#341c54"], PC.PAL.team];
+for (const r of PC.Recipes.list) $("key").add(new Option(r.key, r.key));
+["red", "blue", "teal", "violet", "sentinel"].forEach((n, i) => $("team").add(new Option(n, i)));
+if (q.get("key")) $("key").value = q.get("key");
+if (q.get("zoom")) $("zoom").value = q.get("zoom");
+if (q.get("team")) $("team").value = q.get("team");
+function draw() {
+  const r = PC.Recipes.byKey[$("key").value], Z = +$("zoom").value, team = TEAMS[+$("team").value], out = $("out");
+  const pal = Object.assign({}, PC.PAL, { team });
+  out.innerHTML = "";
+  const [bw, bh, ox, oy] = r.box;
+  for (const [anim, a] of Object.entries(r.anims)) {
+    const facings = a.facings || r.facings;
+    const h = document.createElement("h2"); h.textContent = `${anim} — ${a.n} frame(s), ${facings} facing(s), ${a.fps} fps`; out.appendChild(h);
+    for (let f = 0; f < a.n; f++) {
+      const row = document.createElement("div"); row.className = "row " + $("ground").value;
+      const lab = document.createElement("div"); lab.className = "lab"; lab.textContent = "frame " + f; row.appendChild(lab);
+      for (let k = 0; k < facings; k++) {
+        const rgba = PC.Paint.frame(r.parts(anim, f, a.n), facings === 1 ? 90 : k * 360 / facings, bw, bh, ox, oy, pal);
+        const c = document.createElement("canvas"); c.width = bw; c.height = bh; c.style.width = bw * Z + "px"; c.style.height = bh * Z + "px";
+        const g = c.getContext("2d"), im = g.createImageData(bw, bh); im.data.set(rgba); g.putImageData(im, 0, 0);
+        c.title = `${anim} frame ${f}, facing ${k}`;
+        row.appendChild(c);
+      }
+      out.appendChild(row);
+    }
+  }
+}
+for (const id of ["key", "zoom", "team", "ground"]) $(id).addEventListener("change", draw);
+draw();
+</script>
+</body>
+</html>

@@ -30,6 +30,11 @@ button.pc-danger:hover, button.pc-danger:focus-visible { background: var(--dange
 /* ---- the title's scene: 320x180 painted pixels, covering the screen whole-pixel-sharp ---- */
 .pc-scene { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; image-rendering: crisp-edges; }
 
+/* ---- the battlefield: 640x360 painted pixels, scaled by js/render/view.js ---- */
+#game-host { position: fixed; inset: 0; display: grid; place-items: center; background: var(--bg); }
+#game-host[hidden] { display: none; }
+.pc-screen { display: block; image-rendering: pixelated; image-rendering: crisp-edges; cursor: crosshair; }
+
 /* ---- Settings ---- */
 .pc-set { margin: 0 0 20px; }
 .pc-set h3 { margin: 0 0 10px; font: 700 13px/1 var(--ui); letter-spacing: .18em; text-transform: uppercase; color: var(--steel); }
