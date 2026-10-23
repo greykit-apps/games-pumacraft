@@ -39,6 +39,9 @@
     stim: ["......#.", ".....#.#", "....###.", "...###..", "..###...", ".###....", "##......", "#......."],
     weapons: ["...##...", "...##...", "..####..", "..####..", "..####..", "..####..", ".######.", "...##..."],
     armour: [".######.", "########", "########", "########", ".######.", ".######.", "..####..", "...##..."],
+    cloak: ["..####..", ".#....#.", "#.#..#.#", "#......#", "#.####.#", ".#....#.", "..####..", "........"],
+    matrix: ["..####..", ".##..##.", "##.##.##", "#.####.#", "##.##.##", ".##..##.", "..####..", "........"],
+    buildAdv: ["#####.#.", "#####.#.", "..##.###", "..##..#.", "..##....", "..##....", "..##....", "........"],
     siege: ["...##...", "..####..", "...##...", "...##...", ".######.", "##.##.##", "#..##..#", "#......#"],
   };
   function glyph(name, colour = "#54f2ff") {
@@ -227,8 +230,9 @@
       if (W.qLen[lead]) b[8] = { key: "Escape", label: "Esc", glyph: "cancel", tip: "Cancel the last in the queue", act: () => order(CMD.CANCEL, { tgt: W.qLen[lead] - 1 }, [lead]) };
       return b;
     }
-    if (P.menu === "build") {
-      const w = s.find(i => W.flags[i] & F.WORKER), list = w !== undefined ? T()[W.type[w]].builds : [];
+    if (P.menu === "build" || P.menu === "build2") {
+      const w = s.find(i => W.flags[i] & F.WORKER), wt = w !== undefined ? T()[W.type[w]] : null;
+      const list = !wt ? [] : P.menu === "build" ? wt.builds.slice(0, wt.buildsBasic) : wt.builds.slice(wt.buildsBasic);
       const b = list.map(id => { const bt = T()[id]; return { key: bt.hotkey, type: id, tip: bt.name, cost: bt.cost, req: bt.req, act: () => { P.mode = { kind: "place", type: id, worker: PC.World.id(W, w) }; } }; });
       while (b.length < 8) b.push(undefined);
       b[8] = { key: "Escape", label: "Esc", glyph: "back", tip: "Back", act: () => { P.menu = "main"; card(); } };
@@ -255,7 +259,17 @@
       b[7] = { key: "E", glyph: "siege", tip: dug ? "Pack up" : "Siege mode", note: has ? (dug ? "Back on its tracks: it can move again." : "Dig in: it cannot move, and its shells reach twelve tiles and burst.") : "Research Siege mode at a Motor Pool first.",
         req: has ? [] : [siegeUp.at], act: () => { if (has) order(CMD.ABILITY, { tgt: PC.Orders.ABILITY.siege, x: dug ? 2 : 0 }); } };
     }
+    /* a Kestrel's cloak; an Aegis's defensive matrix */
+    const cloakUp = PC.Data.upByKey.a_cloak;
+    if (cloakUp && s.some(i => T()[W.type[i]].abilities.includes("cloak"))) {
+      const on = s.some(i => W.flags[i] & F.CLOAKED), has = W.upg[P.me * 64 + cloakUp.id];
+      b[6] = { key: "C", glyph: "cloak", tip: on ? "Decloak" : "Cloak", note: has ? (on ? "Seen again, and its energy comes back." : "Unseen but by detectors: 25 energy, then a point every 32 ticks.") : "Research Cloaking field at an Airfield first.",
+        req: has ? [] : [cloakUp.at], act: () => { if (has) order(CMD.ABILITY, { tgt: PC.Orders.ABILITY.cloak, x: on ? 2 : 0 }); } };
+    }
+    if (s.some(i => T()[W.type[i]].abilities.includes("matrix")))
+      b[7] = { key: "D", glyph: "matrix", tip: "Defensive matrix", note: "On a friendly unit: it takes the next 250 points of damage for ten seconds. 100 energy.", act: () => { P.mode = { kind: "ability", ab: PC.Orders.ABILITY.matrix }; } };
     if (workers) {
+      b[5] = { key: "N", glyph: "buildAdv", tip: "Build advanced", act: () => { P.menu = "build2"; card(); } };
       b[6] = { key: "G", glyph: "gather", tip: "Gather ore or vapour", act: () => { P.mode = { kind: "target", cmd: CMD.GATHER }; } };
       b[7] = { key: "C", glyph: "ret", tip: "Bring the load home", act: () => order(CMD.RETURN) };
       b[8] = { key: "B", glyph: "build", tip: "Build", act: () => { P.menu = "build"; card(); } };
@@ -311,6 +325,8 @@
         else if (!(fl & F.BUILDING)) html += `<p class="pc-stat">Armour ${arm}</p>`;
         if (t.energy) html += `<p class="pc-stat">Energy ${W.energy[i]} / ${t.energy}</p>`;
         if (W.stim[i]) html += `<p class="pc-stat pc-hot">Adrenal shot: ${Math.ceil(W.stim[i] / C.TICK)} s</p>`;
+        if (W.matrix[i]) html += `<p class="pc-stat pc-hot">Defensive matrix: ${Math.ceil(W.matrix[i] / 4)} left</p>`;
+        if (fl & F.CLOAKED) html += `<p class="pc-stat pc-hot">Cloaked</p>`;
         if (fl & F.UNDER_CONSTRUCTION) html += `<p class="pc-prog"><span style="width:${W.prog[i] / Math.max(1, t.buildTicks) * 100}%"></span></p><p>Under construction</p>`;
         if (W.carry[i]) html += `<p class="pc-stat">Carrying ${W.amount[i]} ${W.carry[i] === 1 ? "ore" : "vapour"}</p>`;
         if (t.onVapour && !(fl & F.UNDER_CONSTRUCTION)) html += `<p class="pc-stat">${W.amount[i]} vapour left</p>`;
@@ -553,6 +569,12 @@
       flash(cx, cy, "#4ade6a");
       if (!shift) { P.mode = null; P.menu = "main"; card(); }
       return;
+    }
+    if (m.kind === "ability") {
+      const j = pick(wx, wy);
+      if (j < 0 || W.owner[j] !== P.me) { say("Choose one of your own units."); return; }
+      order(CMD.ABILITY, { tgt: m.ab, x: PC.World.id(W, j) });
+      flash(wx, wy, "#54f2ff"); P.mode = null; card(); return;
     }
     if (m.kind === "rally") { const j = pick(wx, wy); order(CMD.RALLY, { x, y, tgt: j >= 0 ? PC.World.id(W, j) : 0 }, selSlots().filter(i => W.flags[i] & F.BUILDING && mine(i))); P.mode = null; card(); return; }
     const j = pick(wx, wy);

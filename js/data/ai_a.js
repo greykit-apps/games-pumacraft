@@ -26,13 +26,18 @@ PC.Data.ai("a", {
     { at: 30, build: "a_depot" },
     { at: 34, build: "a_garage" },
     { at: 36, build: "a_refinery" },
+    { at: 30, build: "a_tower" },
     { at: 38, build: "a_armory" },
+    { at: 42, build: "a_airfield" },
+    { at: 46, build: "a_tower" },
+    { at: 50, build: "a_lab" },
   ],
   /* when the build is done and money piles up: more of these, to these many */
-  more: [["a_barracks", 5], ["a_garage", 3], ["a_depot", 12]],
+  more: [["a_barracks", 5], ["a_garage", 3], ["a_airfield", 2], ["a_depot", 14]],
   /* what to research, in order, as soon as it can be paid for */
-  research: ["a_stim", "a_siege", "a_inf_weapons", "a_veh_weapons", "a_inf_armor", "a_inf_weapons", "a_veh_plating", "a_inf_armor", "a_inf_weapons", "a_veh_weapons", "a_inf_armor"],
-  train: { a_barracks: ["a_trooper", "a_trooper", "a_torcher", "a_trooper", "a_corpsman"], a_garage: ["a_howitzer", "a_hornet", "a_strider", "a_howitzer", "a_hornet"] },
+  research: ["a_stim", "a_siege", "a_inf_weapons", "a_veh_weapons", "a_cloak", "a_inf_armor", "a_ship_weapons", "a_inf_weapons", "a_veh_plating", "a_inf_armor", "a_inf_weapons", "a_veh_weapons", "a_ship_plating", "a_inf_armor"],
+  train: { a_barracks: ["a_trooper", "a_trooper", "a_torcher", "a_trooper", "a_corpsman"], a_garage: ["a_howitzer", "a_hornet", "a_strider", "a_howitzer", "a_hornet"],
+    a_airfield: ["a_kestrel", "a_kestrel", "a_aegis", "a_kestrel", "a_bastion"] },
   workers: "a_engineer",
   waves: { easy: [12, 6], normal: [18, 8], hard: [24, 10] },
 });

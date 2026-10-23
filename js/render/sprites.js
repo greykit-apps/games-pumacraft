@@ -33,7 +33,7 @@
     if (p >= C.MAX_PLAYERS) { const t = PC.Map.tileAt(W.map, W.x[i], W.y[i]); return t >= 0 && (W.explored[t] & (1 << me)) !== 0; }
     const a = W.players[p], b = W.players[me];
     if (a && b && a.team === b.team) return true;
-    return PC.Vision.sees(W, me, W.x[i], W.y[i]);
+    return PC.Vision.seesUnit(W, me, i);
   };
 
   const pos = (W, i, alpha) => [(W.px[i] + (W.x[i] - W.px[i]) * alpha) / C.ONE, (W.py[i] + (W.y[i] - W.py[i]) * alpha) / C.ONE];
@@ -73,7 +73,11 @@
       const sx = Math.round(ox + x - camX), sy = Math.round(oy + y - camY);
       if (!fr || !fr.r || !fr.r[2]) { g.fillStyle = "#ff00ff"; g.fillRect(sx - 2, sy - 2, 4, 4); continue; }
       const [fx, fy, w, h, ax, ay] = fr.r, sheet = PC.Sheets.sheet(fr.sheet, W.owner[i]);
+      /* cloaked: a ghost of itself, to its owner and to whoever detects it */
+      if (fl & F.CLOAKED) g.globalAlpha = 0.4;
       g.drawImage(sheet, fx, fy, w, h, sx - ax, sy - ay, w, h);
+      if (W.matrix[i]) { g.strokeStyle = "rgba(84,242,255,.7)"; g.beginPath(); g.ellipse(sx + 0.5, sy - h / 3 + 0.5, w / 2 + 1, h / 2 + 1, 0, 0, Math.PI * 2); g.stroke(); }
+      g.globalAlpha = 1;
     }
     /* health bars over the selected and the hurt */
     for (const [, y, x, i] of list) {

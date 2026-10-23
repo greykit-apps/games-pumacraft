@@ -171,4 +171,48 @@
       cyl([-24, 10, 14], [2, 2, 4], "gunmetal"), ball([-24, 10, 19], [2, 2, 1.4], "fire", { glow: anim === "work", step: f % 2 ? 2 : 3 }),
     ], 3, 2),
   });
+  /* ---- the Airfield: a landing deck, a control mast ---- */
+  add("a_airfield", {
+    sheet: "buildings_a", facings: 1, heading: 0, box: frameFor(4, 3, 56),
+    anims: { idle: { n: 2, fps: 2 }, work: { n: 4, fps: 6 }, build: { n: 3, fps: 1 }, death: { n: 5, fps: 8 } },
+    parts: building((anim, f) => [
+      box([0, 2, 5], [42, 26, 5], "gunmetal"),
+      box([4, 4, 10.4], [30, 20, 0.4], "rock"),
+      box([4, 4, 10.9], [26, 1, 0.2], "amber", { glow: true, step: anim === "work" ? f % 2 : 2 }),
+      box([4, 4, 10.9], [1, 16, 0.2], "amber", { glow: true, step: anim === "work" ? (f + 1) % 2 : 2 }),
+      box([-32, -10, 18], [6, 6, 13], "steel"),
+      box([-32, -3.8, 26], [5, 0.3, 2], "glass", { glow: true, step: f % 2 }),
+      box([-32, -10, 31.6], [6.3, 6.3, 0.6], "team"),
+      box([34, 22, 13], [0.6, 0.6, 3], "red", { glow: true, step: f % 2 ? 1 : 3 }),
+    ], 4, 3),
+  });
+
+  /* ---- the Science Lab: domes and an array ---- */
+  add("a_lab", {
+    sheet: "buildings_a", facings: 1, heading: 0, box: frameFor(4, 3, 60),
+    anims: { idle: { n: 2, fps: 1 }, work: { n: 4, fps: 6 }, build: { n: 3, fps: 1 }, death: { n: 5, fps: 8 } },
+    parts: building((anim, f) => [
+      box([0, 2, 6], [42, 26, 6], "steel"),
+      ball([-14, 0, 12], [13, 13, 11], "bone"),
+      ball([16, 6, 12], [9, 9, 7], "bone"),
+      box([-14, 0, 23.4], [6, 6, 0.6], "team"),
+      cyl([20, -14, 18], [1, 1, 7], "gunmetal"),
+      ball([20, -14, 27], [5, 5, 1.2], "steel", { rot: [0, anim === "work" ? 20 + f * 10 : 30, 0] }),
+      box([0, 28.3, 6], [12, 0.4, 3], "glass", { glow: true, step: f % 2 }),
+    ], 4, 3),
+  });
+
+  /* ---- the Missile Tower: anti-air, and eyes for the unseen ---- */
+  add("a_tower", {
+    sheet: "buildings_a", facings: 1, heading: 0, box: frameFor(2, 2, 60),
+    anims: { idle: { n: 2, fps: 2 }, work: { n: 1, fps: 1 }, attack: { n: 2, fps: 8 }, build: { n: 3, fps: 1 }, death: { n: 5, fps: 8 } },
+    parts: building((anim, f) => [
+      box([0, 0, 2], [20, 20, 2], "gunmetal"),
+      cyl([0, 0, 12], [6, 6, 10], "steel"),
+      box([0, 0, 22], [8, 8, 1], "team"),
+      box([0, -4, 26], [6, 2, 3], "steel"), box([0, 4, 26], [6, 2, 3], "steel"),
+      box([5, -4, 26], [1, 1.5, 2], "red", { glow: true, step: f % 2 ? 1 : 3 }), box([5, 4, 26], [1, 1.5, 2], "red", { glow: true, step: f % 2 ? 3 : 1 }),
+      cyl([0, 0, 30], [0.5, 0.5, 2], "gunmetal"), ball([0, 0, 33], [1.6, 1.6, 0.8], "glass", { glow: true, step: f % 2 }),
+    ], 2, 2),
+  });
 })();

@@ -45,12 +45,12 @@ globalThis.PC = globalThis.PC || {};
       /* weapons: damage in quarter-points, range in fixed point from edge to edge, cooldown in ticks */
       weapons: (d.weapons || []).map(w => weapon(w, key)),
       siege: d.siege ? { deploy: d.siege.deploy, weapons: d.siege.weapons.map(w => weapon(w, key + "_siege")) } : null,
-      armorUpgrade: d.armorUpgrade || null, bio: !!d.bio, mech: !!d.mech,
+      armorUpgrade: d.armorUpgrade || null, bio: !!d.bio, mech: !!d.mech, detector: !!d.detector,
       stimCost: q(d.stimCost || 10),
       energy: d.energy || 0, energyStart: d.energyStart === undefined ? 50 : d.energyStart, abilities: d.abilities || [], researches: d.researches || [],
       heal: d.heal ? { amount: q(d.heal.amount), every: d.heal.every, cost: d.heal.cost, range: px(d.heal.range) } : null,
       acquire: px((d.acquire || 0) * 32),
-      trains: d.trains || [], builds: d.builds || [], req: d.req || [],
+      trains: d.trains || [], builds: (d.builds || []).concat(d.buildsAdvanced || []), buildsBasic: (d.builds || []).length, req: d.req || [],
       dropoff: !!d.dropoff, onVapour: !!d.onVapour, amount: d.amount || 0, gather: d.gather || 0,
       mine: d.mine || 0, carry: d.carry || 0,
     };

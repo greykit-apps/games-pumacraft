@@ -239,4 +239,68 @@
       return parts;
     },
   });
+  const flyDeath = (Z, size) => (anim, f, n) => { const k = f / (n - 1); return [ball([0, 0, Z - k * (Z - 3)], [size + k * 5, size * 0.8 + k * 5, size * 0.6 + k * 3], k < 0.6 ? "fire" : "smoke", { glow: k < 0.6, step: Math.floor(k * 4) })]; };
+
+  /* ---- the Kestrel: a fighter, swept wings, twin engines ---- */
+  add("a_kestrel", {
+    sheet: "units_a", facings: 16, box: [64, 76, 32, 52],
+    anims: { idle: { n: 2, fps: 6 }, walk: { n: 2, fps: 6 }, attack: { n: 2, fps: 10 }, death: { n: 6, fps: 10, facings: 1 } },
+    parts(anim, f, n) {
+      const Z = 24 + (f % 2) * 0.6;
+      if (anim === "death") return flyDeath(24, 7)(anim, f, n);
+      const parts = [
+        ball([0, 0, Z], [10, 3.4, 2.6], "steel"),
+        ball([5, 0, Z + 1.2], [3, 1.8, 1.4], "glass", { shade: 0.2 }),
+        box([-3, -6.5, Z - 0.6], [5, 5, 0.5], "steel", { rot: [-30, 0, 0] }), box([-3, 6.5, Z - 0.6], [5, 5, 0.5], "steel", { rot: [30, 0, 0] }),
+        box([-4, -9.5, Z - 0.4], [2.5, 1.2, 0.6], "team"), box([-4, 9.5, Z - 0.4], [2.5, 1.2, 0.6], "team"),
+        cyl([-8, -2.4, Z], [1.4, 1.4, 2.2], "gunmetal", { rot: [0, 90, 0] }), cyl([-8, 2.4, Z], [1.4, 1.4, 2.2], "gunmetal", { rot: [0, 90, 0] }),
+        ball([-10.6, -2.4, Z], [1, 1, 1], "glass", { glow: true, step: f % 2 }), ball([-10.6, 2.4, Z], [1, 1, 1], "glass", { glow: true, step: f % 2 }),
+      ];
+      if (anim === "attack" && f === 0) parts.push(ball([12, 0, Z], [1.6, 1.4, 1.2], "red", { glow: true, step: 1 }));
+      return parts;
+    },
+  });
+
+  /* ---- the Aegis: a science craft, a dish and a ring, no guns ---- */
+  add("a_aegis", {
+    sheet: "units_a", facings: 16, box: [80, 92, 40, 64],
+    anims: { idle: { n: 4, fps: 6 }, walk: { n: 4, fps: 6 }, death: { n: 6, fps: 10, facings: 1 } },
+    parts(anim, f, n) {
+      const Z = 28 + Math.sin(f / 4 * 2 * Math.PI);
+      if (anim === "death") return flyDeath(28, 9)(anim, f, n);
+      return [
+        cyl([0, 0, Z], [13, 13, 1.4], "gunmetal"),
+        cyl([0, 0, Z + 1.6], [11.5, 11.5, 0.5], "team"),
+        ball([0, 0, Z + 3], [6, 6, 4], "steel"),
+        ball([0, 0, Z + 6.5], [3, 3, 1.6], "glass", { glow: true, step: f % 2 }),
+        cyl([0, 0, Z - 3], [4, 4, 2], "steel"),
+        box([0, 0, Z + 10], [0.6, 0.6, 3], "gunmetal", { rot: [f * 22, 0, 0] }),
+        ball([Math.cos(f * 1.57) * 9, Math.sin(f * 1.57) * 9, Z + 0.6], [1, 1, 1], "glass", { glow: true, step: 0 }),
+      ];
+    },
+  });
+
+  /* ---- the Bastion: the PDF's capital ship, a long hull, the bridge aft ---- */
+  add("a_bastion", {
+    sheet: "units_a", facings: 16, box: [120, 120, 60, 82],
+    anims: { idle: { n: 2, fps: 3 }, walk: { n: 2, fps: 3 }, attack: { n: 2, fps: 8 }, death: { n: 6, fps: 8, facings: 1 } },
+    parts(anim, f, n) {
+      const Z = 34;
+      if (anim === "death") return flyDeath(34, 16)(anim, f, n);
+      const parts = [
+        box([2, 0, Z], [26, 9, 4], "steel"),
+        box([24, 0, Z - 0.5], [7, 6, 3], "steel", { rot: [0, 0, 0] }),
+        cone([33, 0, Z - 0.5], [5, 5, 4], "steel", { rot: [0, 90, 0] }),
+        box([-14, 0, Z + 6], [8, 6, 3], "gunmetal"),
+        box([-10, 0, Z + 9.4], [4, 4, 0.6], "glass", { glow: true, step: 1 }),
+        box([9, 0, Z + 4.2], [3, 9.2, 0.3], "team"), box([-4, 0, Z + 4.2], [1.5, 9.2, 0.3], "team"),
+        box([-6, -12, Z - 1], [10, 3, 2], "gunmetal"), box([-6, 12, Z - 1], [10, 3, 2], "gunmetal"),
+        cyl([-24, -6, Z], [3, 3, 3], "gunmetal", { rot: [0, 90, 0] }), cyl([-24, 6, Z], [3, 3, 3], "gunmetal", { rot: [0, 90, 0] }),
+        ball([-28, -6, Z], [2, 2, 2], "glass", { glow: true, step: f % 2 }), ball([-28, 6, Z], [2, 2, 2], "glass", { glow: true, step: f % 2 }),
+      ];
+      for (const x of [14, 4, -4]) for (const y of [-8, 8]) parts.push(cyl([x, y, Z + 4.5], [1.6, 1.6, 0.8], "gunmetal"), box([x + 2.4, y, Z + 5.2], [2.4, 0.4, 0.4], "gunmetal"));
+      if (anim === "attack" && f === 0) for (const y of [-8, 8]) parts.push(ball([20, y, Z + 5], [1.6, 1.4, 1.2], "red", { glow: true, step: 1 }));
+      return parts;
+    },
+  });
 })();

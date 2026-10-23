@@ -70,7 +70,7 @@ globalThis.PC = globalThis.PC || {};
       const t = TT[W.type[i]];
       if (f & F.BUILDING) { mine.buildings.push(i); if (t.dropoff && !(f & F.UNDER_CONSTRUCTION)) mine.halls.push(i); if (f & F.UNDER_CONSTRUCTION) mine.building++; continue; }
       if (f & F.WORKER) { mine.workers.push(i); if (!W.oLen[i]) mine.idle.push(i); continue; }
-      if (t.weapons.length || t.heal) mine.army.push(i);
+      if (t.weapons.length || t.heal || t.detector) mine.army.push(i);
     }
     if (!mine.halls.length && !mine.buildings.length) return;
     const home = mine.halls[0] !== undefined ? mine.halls[0] : mine.buildings[0];
@@ -198,6 +198,21 @@ globalThis.PC = globalThis.PC || {};
       }
       if (dig.length) say(W, p, CMD.ABILITY, dig, { tgt: PC.Orders.ABILITY.siege, x: 0 });
       if (pack.length) say(W, p, CMD.ABILITY, pack, { tgt: PC.Orders.ABILITY.siege, x: 2 });
+    }
+
+    /* ---- cloaks in a fight, a matrix for the hurt ---- */
+    const cloakUp = PC.Data.upByKey.a_cloak;
+    if (cloakUp && W.upg[p * 64 + cloakUp.id]) {
+      const on = mine.army.filter(i => W.target[i] && !(W.flags[i] & F.CLOAKED) && TT[W.type[i]].abilities.includes("cloak") && W.energy[i] >= 50);
+      if (on.length) say(W, p, CMD.ABILITY, on.map(id), { tgt: PC.Orders.ABILITY.cloak, x: 0 });
+      const off = mine.army.filter(i => !W.target[i] && (W.flags[i] & F.CLOAKED) && !m[b + K.ATTACKING]);
+      if (off.length) say(W, p, CMD.ABILITY, off.map(id), { tgt: PC.Orders.ABILITY.cloak, x: 2 });
+    }
+    for (const v of mine.army) {
+      if (!TT[W.type[v]].abilities.includes("matrix") || W.energy[v] < 100) continue;
+      let worst = -1, wk = 70;
+      for (const j of mine.army) { const k = W.hp[j] * 100 / TT[W.type[j]].hp; if (W.target[j] && !W.matrix[j] && k < wk && Fx.len(W.x[j] - W.x[v], W.y[j] - W.y[v]) < 9 * C.TILE_FP) { wk = k; worst = j; } }
+      if (worst >= 0) say(W, p, CMD.ABILITY, [id(v)], { tgt: PC.Orders.ABILITY.matrix, x: id(worst) });
     }
 
     /* ---- the army ---- */
