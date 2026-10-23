@@ -11,15 +11,26 @@ Plain scripts, no build step, nothing fetched at play time. Serve the repo root 
 | `js/audio.js` | The sound buses and the title theme, all synthesised. |
 | `js/scene.js` | The title's scene, painted into a 320x180 buffer. |
 | `js/main.js` | The title, its menu, Settings, Help and About. |
+| `js/engine/` | The simulation: DOM-free and deterministic. `const.js` says the rules that keep it so. |
+| `js/data/` | Each faction's units and buildings, in the original's measures (`js/engine/data.js` converts them). |
+| `js/maps/` | Maps, one character a tile (`js/engine/map.js` has the key). |
 | `tools/png.js` | The PNG and ICO writers. |
+| `tools/lib.js` | Loads the engine headless, in `index.html`'s own script order. |
 
-The engine (`js/engine/`, DOM-free and deterministic, played headless by a bot in CI), the art baker and the rest arrive milestone by milestone.
+## The engine's contract
+
+The same seed and the same commands give the same game, tick for tick, on any machine: that is what saves, replays, the headless checks and one day lockstep multiplayer stand on. So under `js/engine/` positions are integers in fixed point (1/256 px), angles come from the committed tables in `tables.js` (written by `tools/gen-tables.js`), roots from `isqrt`, chance from the state's own PRNG, and every piece of state is a typed array registered in `W.state` so it is saved and hashed. The UI and the AI change the game only through `PC.Orders.issue`.
+
+The art baker, the renderer and the rest arrive milestone by milestone.
 
 ## Checks
 
 ```
 node tools/check-assets.js        # every file the page names is in the repo
 node tools/stamp-assets.js        # restamp script and stylesheet URLs after an edit (CI runs --check)
+node tools/lint-determinism.js    # nothing in js/engine/ that can differ between machines
+node tools/gen-tables.js          # rewrite the trig tables (CI runs --check)
+node tools/sim-check.js --seeds 3 # played headless: twice alike, a save played on, the replay, units where they may stand
 ```
 
 ## Icons and the share card

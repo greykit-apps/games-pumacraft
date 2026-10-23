@@ -4,7 +4,7 @@
  * greykit games share one origin, so nothing here ever clears the whole of
  * it -- Forget everything removes this game's keys by prefix. */
 "use strict";
-const PC = globalThis.PC = globalThis.PC || {};
+globalThis.PC = globalThis.PC || {};
 (() => {
   const PREFIX = "pumacraft";
   const K = {
