@@ -90,7 +90,8 @@ globalThis.PC = globalThis.PC || {};
     if (!units.length) return;
     /* buildings take production commands; everything else takes orders */
     const buildings = units.filter(i => W.flags[i] & F.BUILDING), mobile = units.filter(i => !(W.flags[i] & F.BUILDING));
-    if (c.k === CMD.TRAIN || c.k === CMD.CANCEL || c.k === CMD.RALLY) { PC.Econ.command(W, c, buildings); return; }
+    if (c.k === CMD.TRAIN || c.k === CMD.CANCEL || c.k === CMD.RALLY || c.k === CMD.RESEARCH) { PC.Econ.command(W, c, buildings); return; }
+    if (c.k === CMD.ABILITY) { ability(W, c, units); return; }
     if (!mobile.length) return;
     const x = clampX(W, c.x), y = clampY(W, c.y);
     if (c.k === CMD.STOP) { for (const i of mobile) { W.oLen[i] = 0; W.target[i] = 0; W.flags[i] &= ~F.MOVING; W.pathLen[i] = 0; W.pathWant[i] = 0; } return; }
@@ -118,6 +119,24 @@ globalThis.PC = globalThis.PC || {};
     }
   }
 
+  /* ---- abilities a unit uses on itself, by number: 1 the adrenal shot ---- */
+  O.ABILITY = { stim: 1 };
+  function ability(W, c, units) {
+    const T = PC.Data.types;
+    if (c.tgt === O.ABILITY.stim) {
+      const up = PC.Data.upByKey.a_stim;
+      if (!up || !W.upg[c.p * 64 + up.id]) return;
+      for (const i of units) {
+        const t = T[W.type[i]];
+        if (!t.abilities.includes("stim")) continue;
+        const pay = t.stimCost;
+        if (W.hp[i] <= pay) continue;
+        W.hp[i] -= pay; W.stim[i] = 264;
+        W.ev.push(["stim", i]);
+      }
+    }
+  }
+
   /* ---- the step ---- */
   const reachOf = t => { let r = t.acquire; for (const w of t.weapons) if (w.range > r) r = w.range; return r; };
   const shortest = t => { let r = 1 << 30; for (const w of t.weapons) if (w.range < r) r = w.range; return r; };
@@ -132,6 +151,11 @@ globalThis.PC = globalThis.PC || {};
       if (!(fl & F.ALIVE) || (fl & (F.BUILDING | F.RESOURCE))) continue;   /* killed earlier this tick, or not a unit */
       const t = T[W.type[i]], kind = O.headKind(W, i), s = slot(W, i, 0), armed = t.weapons.length > 0 && !(fl & F.WORKER);
       const scan = armed && (tick + i) % 8 === 0;
+      if (t.heal && (kind === ORD.IDLE || kind === ORD.HOLD || kind === ORD.AMOVE)) {
+        /* a healer mends where it stands (held), or goes to who needs it; on an attack-move it mends on the way */
+        if (PC.Combat.mend(W, i, t, kind !== ORD.HOLD)) continue;
+        if (kind !== ORD.AMOVE) continue;
+      }
       if (kind === ORD.IDLE || kind === ORD.HOLD) {
         if (W.target[i]) {
           if (!PC.Combat.fight(W, i, W.target[i], kind === ORD.HOLD ? -1 : 3 * C.TILE_FP)) { W.target[i] = 0; W.flags[i] &= ~F.MOVING; W.pathLen[i] = 0; }
@@ -166,7 +190,9 @@ globalThis.PC = globalThis.PC || {};
   };
 
   /** One tick's walk for unit i toward its goal; true when it has arrived. */
-  O.walk = (W, i, t) => {
+  O.walk = (W, i, t0) => {
+    /* under an adrenal shot a unit moves half again as fast */
+    const t = W.stim[i] ? { speed: t0.speed + (t0.speed >> 1), r: t0.r } : t0;
     const air = W.flags[i] & F.AIR, map = W.map;
     const gdx = W.goalX[i] - W.x[i], gdy = W.goalY[i] - W.y[i], gd = Fx.len(gdx, gdy);
     if (gd <= Math.max(t.speed, t.r >> 2)) {

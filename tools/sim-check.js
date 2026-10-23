@@ -291,6 +291,62 @@ for (let seed = 1; seed <= SEEDS; seed++) {
   invariants(PC, W, "the economy and the fight");
 }
 
+/* ---- research, the adrenal shot, splash and healing ---- */
+{
+  const PC = load(), C = PC.C, F = C.F, T = k => PC.Data.type(k), fp = v => Math.floor(v * C.TILE_FP);
+  const W = PC.Sim.create("proving", [{ faction: "a", team: 0 }, { faction: "a", team: 1 }], 21, { bases: true });
+  W.ore[0] = W.vapour[0] = 5000;
+  const spawn = (k, p, x, y, built = true) => PC.World.spawn(W, T(k).id, p, fp(x), fp(y), built);
+  const id = i => PC.World.id(W, i);
+  /* the shot is refused before the research */
+  const tr = spawn("a_trooper", 0, 30, 40);
+  PC.Orders.issue(W, { t: W.hdr[0], p: 0, k: C.CMD.ABILITY, u: [id(tr)], tgt: PC.Orders.ABILITY.stim });
+  PC.Sim.step(W);
+  if (W.stim[tr]) fail("an adrenal shot was taken before it was researched"); else ok("the adrenal shot waits for its research");
+  /* research at a finished academy and drill hall */
+  const acad = spawn("a_academy", 0, 12, 11), hall = spawn("a_drillhall", 0, 5, 11.5);
+  PC.Orders.issue(W, { t: W.hdr[0], p: 0, k: C.CMD.RESEARCH, u: [id(acad)], tgt: PC.Data.upgrade("a_stim").id });
+  PC.Orders.issue(W, { t: W.hdr[0], p: 0, k: C.CMD.RESEARCH, u: [id(hall)], tgt: PC.Data.upgrade("a_inf_weapons").id });
+  PC.Orders.issue(W, { t: W.hdr[0], p: 0, k: C.CMD.RESEARCH, u: [id(hall)], tgt: PC.Data.upgrade("a_inf_weapons").id });   /* twice: refused as busy */
+  PC.Sim.step(W);
+  if (W.qLen[hall] !== 1) fail(`the same research could be queued twice (${W.qLen[hall]})`);
+  const d0 = PC.Combat.damage(W, tr, PC.Data.types[W.type[tr]].weapons[0]);
+  PC.Sim.run(W, W.hdr[0] + 4010);
+  const up = PC.Data.upgrade("a_inf_weapons"), lvl = W.upg[up.id];
+  if (lvl !== 1 || PC.Combat.damage(W, tr, PC.Data.types[W.type[tr]].weapons[0]) !== d0 + 4) fail(`infantry weapons research left level ${lvl} and damage ${PC.Combat.damage(W, tr, PC.Data.types[W.type[tr]].weapons[0]) / 4}`);
+  else ok("infantry weapons level 1 adds a point to a carbine");
+  /* the shot: 10 health, half the cooldown, half again the speed */
+  const hp0 = W.hp[tr];
+  PC.Orders.issue(W, { t: W.hdr[0], p: 0, k: C.CMD.ABILITY, u: [id(tr)], tgt: PC.Orders.ABILITY.stim });
+  PC.Sim.step(W);
+  if (!W.stim[tr] || hp0 - W.hp[tr] !== 40) fail(`an adrenal shot left ${W.stim[tr]} ticks and cost ${(hp0 - W.hp[tr]) / 4} health`); else ok("an adrenal shot costs a trooper 10 health");
+  const x0 = W.x[tr];
+  PC.Orders.issue(W, { t: W.hdr[0], p: 0, k: C.CMD.MOVE, u: [id(tr)], x: fp(50), y: fp(40) });
+  PC.Sim.run(W, W.hdr[0] + 25);
+  const moved = W.x[tr] - x0, plain = PC.Data.types[W.type[tr]].speed * 24;
+  if (moved < plain * 1.35) fail(`a trooper under the shot moved ${moved / C.ONE} px in a second, not half again its ${plain / C.ONE}`); else ok("under the shot a trooper moves half again as fast");
+  /* splash: a torcher's lance hurts the enemies round its target, and spares its friends */
+  /* on dry ground, south of the lake */
+  const to = spawn("a_torcher", 0, 30, 39), victim = spawn("a_trooper", 1, 31.4, 39), beside = spawn("a_trooper", 1, 31.9, 39.4), friend = spawn("a_trooper", 0, 31.8, 38.6);
+  PC.Combat.hit(W, to, victim, PC.Data.types[W.type[to]].weapons[0]);
+  const fhp = W.hp[friend];
+  PC.Sim.run(W, W.hdr[0] + 1);
+  const w = PC.Data.types[W.type[to]].weapons[0];
+  const order = new Int16Array(C.MAX_UNITS), n = PC.World.alive(W, order); PC.Combat.grid(W, order, n);
+  const bhp = W.hp[beside];
+  W.cd[to] = 0; PC.Vision.update(W, order, n);
+  PC.Combat.fight(W, to, id(victim), 0);
+  if (W.hp[beside] >= bhp) fail("a torcher's lance did not splash the trooper beside its target"); else ok(`a torcher's splash took ${(bhp - W.hp[beside]) / 4} from the trooper beside its target`);
+  if (W.hp[friend] !== fhp) fail("a torcher's splash hurt a friend"); else ok("a torcher's splash spares its friends");
+  /* healing: a corpsman mends a hurt trooper, and pays for it in energy */
+  const medic = spawn("a_corpsman", 0, 20, 30), hurt = spawn("a_trooper", 0, 20.6, 30);
+  W.hp[hurt] = 40; W.energy[medic] = 100;
+  PC.Sim.run(W, W.hdr[0] + 48);
+  if (W.hp[hurt] <= 40 || W.energy[medic] >= 100) fail(`a corpsman beside a hurt trooper left it at ${W.hp[hurt] / 4} health, using ${100 - W.energy[medic]} energy`);
+  else ok(`a corpsman mended ${(W.hp[hurt] - 40) / 4} health in two seconds for ${100 - W.energy[medic]} energy`);
+  invariants(PC, W, "research, the shot, splash and healing");
+}
+
 /* ---- the computer against itself ---- */
 {
   const BOTS = [{ faction: "a", team: 0, ai: "normal" }, { faction: "a", team: 1, ai: "normal" }];

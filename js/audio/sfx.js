@@ -62,6 +62,9 @@
     weld: (ac, d, t) => hiss(ac, d, t, { dur: 0.05, gain: 0.05, f: 6000, q: 4 }),
     mine: (ac, d, t) => tone(ac, d, t, { type: "sine", f0: 1900 + Math.random() * 500, dur: 0.06, gain: 0.03 }),
     deposit: (ac, d, t) => tone(ac, d, t, { type: "triangle", f0: 520, f1: 780, dur: 0.06, gain: 0.03 }),
+    stim: (ac, d, t) => { hiss(ac, d, t, { dur: 0.08, gain: 0.12, f: 3000, q: 6 }); tone(ac, d, t + 0.05, { type: "sawtooth", f0: 200, f1: 600, dur: 0.2, gain: 0.06 }); },
+    heal: (ac, d, t) => tone(ac, d, t, { type: "sine", f0: 880, f1: 1320, dur: 0.12, gain: 0.03 }),
+    a_torcher: (ac, d, t) => hiss(ac, d, t, { dur: 0.3, gain: 0.28, f: 700, q: 0.5, type: "lowpass", f1: 2400 }),
     /* the radio chirp: notes as a list of frequencies */
     chirp: (ac, d, t, notes = [1046, 1318]) => {
       const bp = ac.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 1500; bp.Q.value = 1.2; bp.connect(d);
@@ -107,7 +110,9 @@
       else if (k === "hit") { if (Math.random() < 0.3) { const [x, y] = at(a); S.play("hit", x, y); } }
       else if (k === "die") { const t = T[e[4]], x = e[2] / C.ONE, y = e[3] / C.ONE; S.play(t.foot || t.size === 2 ? "dieBig" : "dieSmall", x, y); }
       else if (k === "built" && W.owner[a] === me) S.play("built");
-      else if (k === "trained" && W.owner[a] === me) S.play("trained");
+      else if ((k === "trained" || k === "researched") && W.owner[a] === me) S.play(k === "researched" ? "built" : "trained");
+      else if (k === "stim") { const [x, y] = at(a); S.play("stim", x, y); }
+      else if (k === "heal") { const [x, y] = at(a); S.play("heal", x, y); }
       else if (k === "error" && a === me) S.play("error");
       else if (k === "place" && W.owner[a] === me) { const [x, y] = at(a); S.play("place", x, y); }
       else if (k === "weld") { const [x, y] = at(a); S.play("weld", x, y); }

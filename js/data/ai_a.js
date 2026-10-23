@@ -17,8 +17,10 @@ PC.Data.ai("a", {
     { at: 12, build: "a_refinery" },
     { at: 14, build: "a_barracks" },
     { at: 16, build: "a_depot" },
-    { at: 19, build: "a_garage" },
+    { at: 18, build: "a_academy" },
+    { at: 20, build: "a_garage" },
     { at: 22, build: "a_depot" },
+    { at: 24, build: "a_drillhall" },
     { at: 26, expand: true },
     { at: 28, build: "a_barracks" },
     { at: 30, build: "a_depot" },
@@ -26,8 +28,10 @@ PC.Data.ai("a", {
     { at: 36, build: "a_refinery" },
   ],
   /* when the build is done and money piles up: more of these, to these many */
-  more: [["a_barracks", 4], ["a_garage", 3], ["a_depot", 12]],
-  train: { a_barracks: ["a_trooper"], a_garage: ["a_hornet", "a_hornet", "a_trooper"] },
+  more: [["a_barracks", 5], ["a_garage", 3], ["a_depot", 12]],
+  /* what to research, in order, as soon as it can be paid for */
+  research: ["a_stim", "a_inf_weapons", "a_inf_armor", "a_inf_weapons", "a_inf_armor", "a_inf_weapons", "a_inf_armor"],
+  train: { a_barracks: ["a_trooper", "a_trooper", "a_torcher", "a_trooper", "a_corpsman"], a_garage: ["a_hornet", "a_hornet", "a_trooper"] },
   workers: "a_engineer",
   waves: { easy: [12, 6], normal: [18, 8], hard: [24, 10] },
 });

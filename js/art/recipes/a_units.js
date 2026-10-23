@@ -125,4 +125,57 @@
       ];
     },
   });
+  /** A PDF infantryman: legs, body in `suit`, team plates, the head, and a weapon from weapon(bob). */
+  const soldier = (anim, f, n, suit, weapon, extra = []) => {
+    if (anim === "death") {
+      const k = f / (n - 1), tip = Math.min(1, k * 1.4) * 80, z = Math.max(0.9, 6 - k * 6);
+      return [
+        box([0, 0, z], [2.2, 2.4, 2.4], suit, { rot: [0, tip, 0] }),
+        ball([0, -2.6, z + 0.6], [1.2, 1.2, 1], "team", { rot: [0, tip, 0] }),
+        ...head(Math.max(1.6, 10 - k * 9)).map(p => Object.assign(p, { at: [p.at[0] - k * 4, p.at[1], p.at[2]] })),
+      ];
+    }
+    const walking = anim === "walk", stride = walking ? swing(f, n, 1.4) : 0, bob = walking ? Math.abs(swing(f, n, 0.5)) : 0;
+    return [
+      box([stride, -1.25, 2], [1.1, 0.9, 2], "gunmetal"),
+      box([-stride, 1.25, 2], [1.1, 0.9, 2], "gunmetal"),
+      box([0, 0, 6.2 + bob], [2.1, 2.4, 2.2], suit),
+      ball([0, -2.6, 7.6 + bob], [1.25, 1.25, 1], "team"),
+      ball([0, 2.6, 7.6 + bob], [1.25, 1.25, 1], "team"),
+      ...head(10.2 + bob),
+      ...weapon(bob, anim, f),
+      ...extra.map(e => typeof e === "function" ? e(bob, anim, f) : e).flat(),
+    ];
+  };
+
+  add("a_torcher", {
+    sheet: "units_a", facings: 16, box: [44, 38, 22, 25],
+    anims: { idle: { n: 1, fps: 1 }, walk: { n: 6, fps: 10 }, attack: { n: 3, fps: 12 }, death: { n: 6, fps: 10, facings: 1 } },
+    parts(anim, f, n) {
+      return soldier(anim, f, n, "gunmetal", (bob, a, fr) => {
+        const parts = [
+          /* two fuel tanks on the back, the lance under the arm */
+          cyl([-2.6, -1, 7.4 + bob], [1, 1, 2.2], "amber"), cyl([-2.6, 1, 7.4 + bob], [1, 1, 2.2], "amber"),
+          box([2.4, 1.6, 6 + bob], [2.4, 0.6, 0.6], "steel"),
+        ];
+        if (a === "attack") for (let k = 0; k < 3; k++) parts.push(ball([5.5 + k * 2.2 + fr, 1.6 + (k - 1) * 0.6 * (fr % 2 ? 1 : -1), 6 + bob], [1.4 + k * 0.6, 1.2 + k * 0.5, 1.1 + k * 0.4], "fire", { glow: true, step: Math.min(4, k + fr % 2) }));
+        return parts;
+      });
+    },
+  });
+
+  add("a_corpsman", {
+    sheet: "units_a", facings: 16, box: [40, 36, 20, 24],
+    anims: { idle: { n: 1, fps: 1 }, walk: { n: 6, fps: 10 }, work: { n: 2, fps: 6 }, death: { n: 6, fps: 10, facings: 1 } },
+    parts(anim, f, n) {
+      /* pale armour with a teal band, the med pack on the back and a mending wand; no red cross (a protected emblem) */
+      return soldier(anim, f, n, "bone", bob => [
+        box([0.1, 0, 7.2 + bob], [2.15, 2.45, 0.5], "glass", { glow: true, step: 2 }),
+        box([-2.5, 0, 7 + bob], [1, 1.8, 1.8], "steel"),
+        box([-2.5, 0, 9.1 + bob], [0.9, 0.5, 0.3], "glass", { glow: true, step: 1 }),
+        box([2.2, 1.8, 6.4 + bob], [1.3, 0.4, 0.4], "steel"),
+        ...(anim === "work" ? [ball([4.2, 1.8, 6.4 + bob], [1 + f * 0.4, 1 + f * 0.4, 1 + f * 0.4], "glass", { glow: true, step: f })] : []),
+      ]);
+    },
+  });
 })();

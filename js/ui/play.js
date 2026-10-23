@@ -36,6 +36,9 @@
     cancel: ["#......#", ".#....#.", "..#..#..", "...##...", "...##...", "..#..#..", ".#....#.", "#......#"],
     rally: [".#......", ".#####..", ".######.", ".#####..", ".#......", ".#......", ".#......", "###....."],
     back: ["...#....", "..##....", ".#######", "########", ".#######", "..##....", "...#....", "........"],
+    stim: ["......#.", ".....#.#", "....###.", "...###..", "..###...", ".###....", "##......", "#......."],
+    weapons: ["...##...", "...##...", "..####..", "..####..", "..####..", "..####..", ".######.", "...##..."],
+    armour: [".######.", "########", "########", "########", ".######.", ".######.", "..####..", "...##..."],
   };
   function glyph(name, colour = "#54f2ff") {
     const c = document.createElement("canvas"); c.width = c.height = 16;
@@ -98,7 +101,10 @@
       onFrame(dt, ms) { scroll(dt); if (ms - hudAt > 120) { hudAt = ms; hud(); } if (ms - miniAt > 200) { miniAt = ms; mini(); } },
       onStep(W2) {
         PC.SFX.events(W2, P.me);
-        for (const e of W2.ev) if (e[0] === "error" && e[1] === P.me) say(ERR[e[2]] || "Cannot do that.");
+        for (const e of W2.ev) {
+          if (e[0] === "error" && e[1] === P.me) say(ERR[e[2]] || "Cannot do that.");
+          else if (e[0] === "researched" && W2.owner[e[1]] === P.me) { const up = PC.Data.upgrades[e[2]]; say(`${up.name}${up.levels > 1 ? " level " + W2.upg[P.me * 64 + up.id] : ""}: research complete.`, 3500); }
+        }
         if (W2.hdr[0] % 24 === 0) judge();
         /* an autosave every five game minutes */
         if (W2.hdr[0] % (C.TICK * 300) === 0 && PC.Saves.canSlot) PC.Saves.toSlot(PC.Saves.AUTO, W2, extra());
@@ -110,7 +116,7 @@
   P.stop = () => { V.stop(); V.over = null; const host = $("#game-host"); host.hidden = true; host.innerHTML = ""; unwire(); };
 
   const ERR = { ore: "Not enough ore.", vapour: "Not enough vapour.", supply: "More supply is needed: build a Supply Depot.", place: "Cannot build there.",
-    queue: "The queue is full.", tech: "That needs another building first." };
+    queue: "The queue is full.", tech: "That needs another building first.", busy: "That is already being researched.", done: "That is already fully researched." };
   function say(text, ms = 2500) { P.msg = { text, until: performance.now() + ms }; const el = $(".pc-msg", P.box); if (el) { el.textContent = text; el.classList.add("on"); } }
 
   /* ---- what is where ---- */
@@ -207,8 +213,16 @@
     if (W.flags[lead] & F.BUILDING) {
       if (W.flags[lead] & F.UNDER_CONSTRUCTION) return [, , , , , , , , { key: "Escape", label: "Esc", glyph: "cancel", tip: "Cancel construction (three quarters back)", act: () => order(CMD.CANCEL, { tgt: -1 }, [lead]) }];
       const b = lt.trains.map(id => { const ut = T()[id]; return { key: ut.hotkey, type: id, tip: `${ut.name}`, cost: ut.cost, supply: ut.supply, req: ut.req, act: () => order(CMD.TRAIN, { tgt: id }, s.filter(i => W.type[i] === W.type[lead])) }; });
+      /* research: the next level of each upgrade this building holds */
+      for (const uid of lt.researches) {
+        const up = PC.Data.upgrades[uid], level = W.upg[P.me * 64 + uid];
+        if (level >= up.levels) continue;
+        b.push({ key: up.hotkey, glyph: up.art || (up.key.includes("armor") ? "armour" : up.key.includes("stim") ? "stim" : "weapons"),
+          tip: up.name + (up.levels > 1 ? ` (level ${level + 1} of ${up.levels})` : ""), note: up.note, cost: up.cost[level], req: up.req[level],
+          act: () => order(CMD.RESEARCH, { tgt: uid }, [lead]) });
+      }
       while (b.length < 6) b.push(undefined);
-      b[6] = { key: "Y", glyph: "rally", tip: "Set the rally point", act: () => { P.mode = { kind: "rally" }; } };
+      if (lt.trains.length) b[6] = { key: "Y", glyph: "rally", tip: "Set the rally point", act: () => { P.mode = { kind: "rally" }; } };
       if (W.qLen[lead]) b[8] = { key: "Escape", label: "Esc", glyph: "cancel", tip: "Cancel the last in the queue", act: () => order(CMD.CANCEL, { tgt: W.qLen[lead] - 1 }, [lead]) };
       return b;
     }
@@ -228,6 +242,11 @@
       { key: "P", glyph: "patrol", tip: "Patrol between here and there", act: () => { P.mode = { kind: "target", cmd: CMD.PATROL }; } },
       { key: "H", glyph: "hold", tip: "Hold position", act: () => order(CMD.HOLD) },
     ];
+    /* the adrenal shot, once researched */
+    const stimUp = PC.Data.upByKey.a_stim;
+    if (stimUp && s.some(i => T()[W.type[i]].abilities.includes("stim")))
+      b[5] = { key: "T", glyph: "stim", tip: "Adrenal shot", note: W.upg[P.me * 64 + stimUp.id] ? "Faster, and firing twice as often, for eleven seconds. Costs 10 health (a torcher 20)." : "Research it at an Academy first.",
+        req: W.upg[P.me * 64 + stimUp.id] ? [] : [stimUp.at], act: () => { if (W.upg[P.me * 64 + stimUp.id]) order(CMD.ABILITY, { tgt: PC.Orders.ABILITY.stim }); } };
     if (workers) {
       b[6] = { key: "G", glyph: "gather", tip: "Gather ore or vapour", act: () => { P.mode = { kind: "target", cmd: CMD.GATHER }; } };
       b[7] = { key: "C", glyph: "ret", tip: "Bring the load home", act: () => order(CMD.RETURN) };
@@ -258,6 +277,7 @@
   function tip(b, btn) {
     const el = $(".pc-tip", P.box), W = P.W;
     let html = `<b>${esc(b.tip)}</b>${b.key ? ` <kbd>${esc(b.label || b.key)}</kbd>` : ""}`;
+    if (b.note) html += `<span class="pc-tipnote">${esc(b.note)}</span>`;
     if (b.cost) html += `<span class="pc-cost"><i class="o"></i>${b.cost[0]}${b.cost[1] ? `<i class="v"></i>${b.cost[1]}` : ""}${b.supply ? `<i class="s"></i>${b.supply}` : ""}</span>`;
     if (b.req && b.req.length && !b.req.every(r => PC.Econ.has(W, P.me, r))) html += `<span class="pc-need">Needs ${b.req.map(r => esc(T()[r].name)).join(", ")}</span>`;
     el.innerHTML = html; el.hidden = false;
@@ -278,9 +298,11 @@
       if (fl & F.RESOURCE) html += `<p>${W.amount[i]} ${t.gather === 1 ? "ore" : "vapour"} left</p>`;
       else {
         html += `<p class="pc-hp"><span style="width:${Math.max(0, W.hp[i]) / t.hp * 100}%"></span></p><p>${Math.ceil(Math.max(0, W.hp[i]) / 4)} / ${t.hp / 4}</p>`;
-        const w = t.weapons[0];
-        if (w) html += `<p class="pc-stat">${esc(w.name)}: ${w.dmg / 4}${w.upg ? "" : ""} &middot; armour ${t.armor}${W.kills[i] ? ` &middot; ${W.kills[i]} kill${W.kills[i] > 1 ? "s" : ""}` : ""}</p>`;
-        else if (!(fl & F.BUILDING)) html += `<p class="pc-stat">Armour ${t.armor}</p>`;
+        const w = t.weapons[0], arm = PC.Combat.armour(W, i);
+        if (w) html += `<p class="pc-stat">${esc(w.name)}: ${PC.Combat.damage(W, i, w) / 4}${w.hits > 1 ? " x" + w.hits : ""} &middot; armour ${arm}${W.kills[i] ? ` &middot; ${W.kills[i]} kill${W.kills[i] > 1 ? "s" : ""}` : ""}</p>`;
+        else if (!(fl & F.BUILDING)) html += `<p class="pc-stat">Armour ${arm}</p>`;
+        if (t.energy) html += `<p class="pc-stat">Energy ${W.energy[i]} / ${t.energy}</p>`;
+        if (W.stim[i]) html += `<p class="pc-stat pc-hot">Adrenal shot: ${Math.ceil(W.stim[i] / C.TICK)} s</p>`;
         if (fl & F.UNDER_CONSTRUCTION) html += `<p class="pc-prog"><span style="width:${W.prog[i] / Math.max(1, t.buildTicks) * 100}%"></span></p><p>Under construction</p>`;
         if (W.carry[i]) html += `<p class="pc-stat">Carrying ${W.amount[i]} ${W.carry[i] === 1 ? "ore" : "vapour"}</p>`;
         if (t.onVapour && !(fl & F.UNDER_CONSTRUCTION)) html += `<p class="pc-stat">${W.amount[i]} vapour left</p>`;
@@ -291,9 +313,10 @@
       $(".pc-port", el).appendChild(icon(W.type[i], W.owner[i], 44));
       const q = $(".pc-queue", el);
       if (q) for (let k = 0; k < W.qLen[i]; k++) {
-        const b = document.createElement("button"); b.className = "pc-qi"; b.title = `${T()[W.queue[i * 5 + k]].name}: click to cancel`;
-        b.appendChild(icon(W.queue[i * 5 + k], W.owner[i], 18));
-        if (k === 0) { const pr = document.createElement("span"); pr.className = "pc-qp"; pr.style.width = (W.prog[i] / T()[W.queue[i * 5]].buildTicks * 100) + "%"; b.appendChild(pr); }
+        const q = W.queue[i * 5 + k], R = PC.Data.RESEARCH, up = q >= R ? PC.Data.upgrades[q - R] : null;
+        const b = document.createElement("button"); b.className = "pc-qi"; b.title = `${up ? up.name : T()[q].name}: click to cancel`;
+        b.appendChild(up ? glyph(up.key.includes("armor") ? "armour" : up.key.includes("stim") ? "stim" : "weapons") : icon(q, W.owner[i], 18));
+        if (k === 0) { const total = up ? up.ticks[Math.min(up.levels - 1, W.upg[W.owner[i] * 64 + up.id])] : T()[q].buildTicks; const pr = document.createElement("span"); pr.className = "pc-qp"; pr.style.width = (W.prog[i] / total * 100) + "%"; b.appendChild(pr); }
         b.addEventListener("click", ev => { ev.stopPropagation(); order(CMD.CANCEL, { tgt: k }, [i]); });
         q.appendChild(b);
       }

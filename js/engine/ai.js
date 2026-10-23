@@ -30,7 +30,7 @@ globalThis.PC = globalThis.PC || {};
 
   /* W.ai[p * SLOTS + k] */
   const SLOTS = 32;
-  const K = { STEP: 0, WAVE: 1, WAVES: 2, ATT_TICK: 3, ATT_X: 4, ATT_Y: 5, TGT_X: 6, TGT_Y: 7, ATTACKING: 8, BUILDER: 9, PEND_TYPE: 10, PEND_TICK: 11, EXPANDED: 12, TRAIN_ROT: 13, SCOUT: 14, STUCK: 15 };
+  const K = { STEP: 0, WAVE: 1, WAVES: 2, ATT_TICK: 3, ATT_X: 4, ATT_Y: 5, TGT_X: 6, TGT_Y: 7, ATTACKING: 8, BUILDER: 9, PEND_TYPE: 10, PEND_TICK: 11, EXPANDED: 12, TRAIN_ROT: 13, SCOUT: 14, STUCK: 15, PEND_COUNT: 16, PEND_LIST: 17 };
   A.SLOTS = SLOTS; A.K = K;
   const THINK = { easy: 48, normal: 24, hard: 12 };
 
@@ -70,7 +70,7 @@ globalThis.PC = globalThis.PC || {};
       const t = TT[W.type[i]];
       if (f & F.BUILDING) { mine.buildings.push(i); if (t.dropoff && !(f & F.UNDER_CONSTRUCTION)) mine.halls.push(i); if (f & F.UNDER_CONSTRUCTION) mine.building++; continue; }
       if (f & F.WORKER) { mine.workers.push(i); if (!W.oLen[i]) mine.idle.push(i); continue; }
-      if (t.weapons.length) mine.army.push(i);
+      if (t.weapons.length || t.heal) mine.army.push(i);
     }
     if (!mine.halls.length && !mine.buildings.length) return;
     const home = mine.halls[0] !== undefined ? mine.halls[0] : mine.buildings[0];
@@ -93,40 +93,62 @@ globalThis.PC = globalThis.PC || {};
     const veins = countVeins(W, mine.halls);
     const wantWorkers = Math.min(60, Math.floor(veins * 5 / 2) + 3 * mine.buildings.filter(r => TT[W.type[r]].onVapour).length + 2);
     const workerType = PC.Data.type(def.workers).id;
-    if (mine.workers.length < wantWorkers) for (const h of mine.halls) if (W.qLen[h] < 2 && afford(W, p, TT[workerType].cost)) say(W, p, CMD.TRAIN, [id(h)], { tgt: workerType });
+    const workersAt = () => mine.workers.length;
+
+    /* ---- the build in hand: one at a time, its cost kept back until it stands ---- */
+    let reserve = [0, 0];
+    if (m[b + K.PEND_TYPE]) {
+      const pt = m[b + K.PEND_TYPE], have = mine.buildings.filter(i => W.type[i] === pt).length;
+      const w = Wo.live(W, m[b + K.BUILDER]), going = w >= 0 && PC.Orders.headKind(W, w) === ORD.BUILD;
+      if (have > m[b + K.PEND_COUNT]) {
+        /* it stands: if it was the build's step, on to the next */
+        if (m[b + K.PEND_LIST]) { m[b + K.STEP]++; m[b + K.STUCK] = 0; }
+        m[b + K.PEND_TYPE] = 0;
+      } else if (!going && W.hdr[0] - m[b + K.PEND_TICK] > 24) {
+        /* the builder gave up or fell: try again, or after a few tries, let the step go */
+        m[b + K.PEND_TYPE] = 0;
+        if (m[b + K.PEND_LIST] && ++m[b + K.STUCK] > 6) { m[b + K.STEP]++; m[b + K.STUCK] = 0; }
+      } else reserve = TT[pt].cost;
+    }
+    const spare = cost => W.ore[p] - reserve[0] >= cost[0] && W.vapour[p] - reserve[1] >= cost[1];
 
     /* ---- supply ---- */
     const used = W.supplyUsed[p], cap = W.supplyCap[p];
     const depot = TT.find(t => t && t.faction === pl.faction && t.supplyGive && !t.dropoff);
-    const pendingSupply = mine.buildings.some(i => (W.flags[i] & F.UNDER_CONSTRUCTION) && TT[W.type[i]].supplyGive) || (m[b + K.PEND_TYPE] === (depot && depot.id) && W.hdr[0] - m[b + K.PEND_TICK] < 24 * 15);
-    if (depot && cap < C.SUPPLY_MAX && cap - used < 3 + Math.floor(used / 8) && !pendingSupply && afford(W, p, depot.cost)) { place(W, p, depot, mine, home); return; }
+    const rising = mine.buildings.some(i => (W.flags[i] & F.UNDER_CONSTRUCTION) && TT[W.type[i]].supplyGive);
+    if (!m[b + K.PEND_TYPE] && depot && cap < C.SUPPLY_MAX && cap - used < 3 + Math.floor(used / 8) && !rising && afford(W, p, depot.cost)) {
+      if (place(W, p, depot, mine, home, false)) reserve = depot.cost;
+    }
 
     /* ---- the build ---- */
     const step = m[b + K.STEP];
-    if (step < def.build.length) {
+    if (!m[b + K.PEND_TYPE] && step < def.build.length) {
       const s = def.build[step];
       if (used >= s.at) {
         if (s.expand) {
           const hall = TT[W.type[home]];
-          if (afford(W, p, hall.cost)) { if (expand(W, p, hall, mine)) m[b + K.STEP]++; }
+          if (afford(W, p, hall.cost)) { const r = expand(W, p, hall, mine); if (r === "none") m[b + K.STEP]++; else if (r) reserve = hall.cost; }
         } else {
           const t = PC.Data.type(s.build);
           if (!PC.Econ.unlocked(W, p, t)) m[b + K.STEP]++;   /* cannot yet: let it pass rather than stall */
           else if (afford(W, p, t.cost)) {
-            if (place(W, p, t, mine, home)) { m[b + K.STEP]++; m[b + K.STUCK] = 0; }
+            if (place(W, p, t, mine, home, true)) reserve = t.cost;
             /* nowhere to put it (no free vent, a full base): give up on this step after a few tries */
             else if (++m[b + K.STUCK] > 6) { m[b + K.STEP]++; m[b + K.STUCK] = 0; }
           }
         }
       }
-    } else if (mine.building === 0 && W.hdr[0] - m[b + K.PEND_TICK] > 24 * 10) {
+    } else if (!m[b + K.PEND_TYPE] && mine.building === 0) {
       /* the build is done: money left over goes into more factories, up to a limit */
       for (const [key, limit] of def.more || []) {
         const t = PC.Data.type(key);
         const have = mine.buildings.filter(i => W.type[i] === t.id).length;
-        if (have < limit && W.ore[p] > t.cost[0] + 150 && W.vapour[p] >= t.cost[1] && PC.Econ.unlocked(W, p, t)) { place(W, p, t, mine, home); break; }
+        if (have < limit && W.ore[p] > t.cost[0] + 150 && W.vapour[p] >= t.cost[1] && PC.Econ.unlocked(W, p, t)) { if (place(W, p, t, mine, home, false)) reserve = t.cost; break; }
       }
     }
+
+    /* ---- workers, from what is left over ---- */
+    if (workersAt() < wantWorkers) for (const h of mine.halls) if (W.qLen[h] < 2 && spare(TT[workerType].cost)) { say(W, p, CMD.TRAIN, [id(h)], { tgt: workerType }); reserve = [reserve[0] + TT[workerType].cost[0], reserve[1]]; }
 
     /* ---- production ---- */
     for (const f of mine.buildings) {
@@ -134,12 +156,33 @@ globalThis.PC = globalThis.PC || {};
       const list = def.train[TT[W.type[f]].key];
       if (!list || W.qLen[f] >= 2) continue;
       const pick = PC.Data.type(list[(m[b + K.TRAIN_ROT] + f) % list.length]);
-      if (!PC.Econ.unlocked(W, p, pick) || !afford(W, p, pick.cost)) continue;
+      if (!PC.Econ.unlocked(W, p, pick) || !spare(pick.cost)) continue;
       /* save for the build's next step when it is near */
       const next = def.build[m[b + K.STEP]];
-      if (next && used >= next.at - 1 && next.build && W.ore[p] - pick.cost[0] < PC.Data.type(next.build).cost[0]) continue;
+      if (next && used >= next.at - 1 && next.build && W.ore[p] - reserve[0] - pick.cost[0] < PC.Data.type(next.build).cost[0]) continue;
       say(W, p, CMD.TRAIN, [id(f)], { tgt: pick.id });
+      reserve = [reserve[0] + pick.cost[0], reserve[1] + pick.cost[1]];
       m[b + K.TRAIN_ROT]++;
+    }
+
+    /* ---- research, in the faction's order ---- */
+    for (const key of def.research || []) {
+      const up = PC.Data.upByKey[key];
+      if (!up || W.upg[p * 64 + up.id] >= up.levels) continue;
+      const why = PC.Econ.canResearch(W, p, up);
+      if (why === "busy") continue;
+      if (!why && !spare(up.cost[W.upg[p * 64 + up.id]])) break;
+      if (why) break;   /* the next thing on the list cannot be had yet: wait for it rather than skip ahead */
+      const at = mine.buildings.find(i => W.type[i] === up.at && !(W.flags[i] & F.UNDER_CONSTRUCTION) && W.qLen[i] === 0);
+      if (at !== undefined) say(W, p, CMD.RESEARCH, [id(at)], { tgt: up.id });
+      break;
+    }
+
+    /* ---- the adrenal shot, for troops in a fight who can spare the health ---- */
+    const stim = PC.Data.upByKey.a_stim;
+    if (stim && W.upg[p * 64 + stim.id]) {
+      const shot = mine.army.filter(i => W.target[i] && !W.stim[i] && TT[W.type[i]].abilities.includes("stim") && W.hp[i] * 4 > TT[W.type[i]].hp * 3);
+      if (shot.length >= 3) say(W, p, CMD.ABILITY, shot.map(id), { tgt: PC.Orders.ABILITY.stim });
     }
 
     /* ---- the army ---- */
@@ -246,8 +289,8 @@ globalThis.PC = globalThis.PC || {};
     }
     return best;
   }
-  /** Puts up a building of type t near the base; true if a builder was sent. */
-  function place(W, p, t, mine, home) {
+  /** Puts up a building of type t near the base; true if a builder was sent. list: it is the build's step. */
+  function place(W, p, t, mine, home, list) {
     const w = builder(W, p, mine, home);
     if (w < 0) return false;
     let site = null;
@@ -256,17 +299,21 @@ globalThis.PC = globalThis.PC || {};
       for (let j = 0; j < C.MAX_UNITS; j++) if ((W.flags[j] & F.RESOURCE) && T()[W.type[j]].gather === 2) { const d = Fx.len(W.x[j] - W.x[home], W.y[j] - W.y[home]); if (d < bd) { bd = d; site = [W.x[j], W.y[j]]; } }
     } else site = findSite(W, p, t, home, w);
     if (!site) return false;
-    const m = W.ai, b = p * SLOTS;
-    m[b + K.BUILDER] = Wo.id(W, w); m[b + K.PEND_TYPE] = t.id; m[b + K.PEND_TICK] = W.hdr[0];
+    pend(W, p, t, w, mine, list);
     say(W, p, CMD.BUILD, [Wo.id(W, w)], { x: site[0], y: site[1], tgt: t.id });
     return true;
+  }
+  function pend(W, p, t, w, mine, list) {
+    const m = W.ai, b = p * SLOTS;
+    m[b + K.BUILDER] = Wo.id(W, w); m[b + K.PEND_TYPE] = t.id; m[b + K.PEND_TICK] = W.hdr[0];
+    m[b + K.PEND_COUNT] = mine.buildings.filter(i => W.type[i] === t.id).length; m[b + K.PEND_LIST] = list ? 1 : 0;
   }
   /** The nearest site to the hall, in a spiral, where t fits with a tile to spare on every side and does not sit between the hall and its ore. */
   function findSite(W, p, t, home, w) {
     const htx = Math.floor(W.x[home] / C.TILE_FP), hty = Math.floor(W.y[home] / C.TILE_FP), fw = t.foot[0], fh = t.foot[1];
     const veinsNear = [];
     for (let j = 0; j < C.MAX_UNITS; j++) if ((W.flags[j] & F.RESOURCE) && Fx.len(W.x[j] - W.x[home], W.y[j] - W.y[home]) < 12 * C.TILE_FP) veinsNear.push(j);
-    for (let r = 3; r <= 14; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+    for (let r = 3; r <= 22; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
       if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
       const tx = htx + dx, ty = hty + dy;
       const cx = Math.floor((tx + fw / 2) * C.TILE_FP), cy = Math.floor((ty + fh / 2) * C.TILE_FP);
@@ -300,11 +347,11 @@ globalThis.PC = globalThis.PC || {};
       const d = Fx.len(x - W.x[home], y - W.y[home]);
       if (d < bd) { bd = d; best = [x, y]; }
     }
-    if (!best) return true;   /* nowhere left: count the step done */
+    if (!best) return "none";   /* nowhere left: count the step done */
     const w = builder(W, p, mine, home);
     if (w < 0) return false;
-    const m = W.ai, b = p * SLOTS;
-    m[b + K.BUILDER] = Wo.id(W, w); m[b + K.PEND_TYPE] = hall.id; m[b + K.PEND_TICK] = W.hdr[0]; m[b + K.EXPANDED]++;
+    pend(W, p, hall, w, mine, true);
+    W.ai[p * SLOTS + K.EXPANDED]++;
     say(W, p, CMD.BUILD, [Wo.id(W, w)], { x: best[0], y: best[1], tgt: hall.id });
     return true;
   }
