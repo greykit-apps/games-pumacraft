@@ -129,4 +129,33 @@
       ];
     }, 4, 3),
   });
+  /* ---- the Academy: where the PDF's officers are made, and its field medicine ---- */
+  add("a_academy", {
+    sheet: "buildings_a", facings: 1, heading: 0, box: frameFor(3, 2, 48),
+    anims: { idle: { n: 2, fps: 1 }, work: { n: 4, fps: 6 }, build: { n: 3, fps: 1 }, death: { n: 5, fps: 8 } },
+    parts: building((anim, f) => [
+      box([0, 2, 6], [31, 18, 6], "steel"),
+      box([0, 2, 12.4], [32, 19, 0.5], "gunmetal"),
+      cyl([-14, 0, 17], [8, 8, 5], "bone"),
+      cone([-14, 0, 25], [8.5, 8.5, 3], "gunmetal"),
+      box([10, 19.6, 6], [14, 0.4, 3], "glass", { glow: true, step: anim === "work" ? f % 2 : 1 }),
+      box([-14, 8.2, 17], [6, 0.3, 1], "team"),
+      box([20, -8, 18], [0.6, 0.6, 7], "gunmetal"), box([22.5, -8, 23], [2.5, 0.3, 1.5], "team"),
+    ], 3, 2),
+  });
+
+  /* ---- the Drill Hall: arms and armour for the infantry ---- */
+  add("a_drillhall", {
+    sheet: "buildings_a", facings: 1, heading: 0, box: frameFor(4, 3, 52),
+    anims: { idle: { n: 1, fps: 1 }, work: { n: 4, fps: 6 }, build: { n: 3, fps: 1 }, death: { n: 5, fps: 8 } },
+    parts: building((anim, f) => [
+      box([0, 2, 8], [42, 26, 8], "gunmetal"),
+      box([-10, -4, 19], [26, 16, 3], "steel"),
+      box([24, 10, 20], [10, 10, 4], "steel"),
+      box([0, 28.3, 7], [26, 0.5, 5], "rubber"),
+      box([0, 28.8, 13], [26, 0.4, 0.8], "team"),
+      cyl([24, 10, 26], [4, 4, 2], "amber", { glow: anim === "work", step: f % 2 ? 1 : 2 }),
+      box([-30, 28.4, 9], [6, 0.3, 2.5], "glass", { glow: true, step: 1 }),
+    ], 4, 3),
+  });
 })();

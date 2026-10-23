@@ -83,6 +83,8 @@ button.pc-danger:hover, button.pc-danger:focus-visible { background: var(--dange
 .pc-cost i:first-child { margin-left: 0; }
 .pc-cost .o { background: var(--pc-ore); } .pc-cost .v { background: var(--pc-vapour); } .pc-cost .s { background: var(--accent); border-radius: 50%; transform: none; }
 .pc-need { display: block; margin-top: 2px; color: var(--danger); }
+.pc-tipnote { display: block; margin-top: 2px; color: var(--ink); }
+.pc-hot { color: var(--warn) !important; }
 
 /* ---- Settings, and the game's own sheets ---- */
 .pc-col { display: flex; flex-direction: column; gap: 6px; margin: 0 0 10px; align-items: stretch; }

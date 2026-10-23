@@ -80,18 +80,26 @@ globalThis.PC = globalThis.PC || {};
     return best;
   };
 
-  /** j takes a hit from i's weapon w. */
-  K.hit = (W, i, j, w) => {
-    const T = PC.Data.types, tj = T[W.type[j]];
-    let d = w.dmg;
-    if (W.shield[j] > 0) {
-      const s = Math.min(W.shield[j], d);
-      W.shield[j] -= s; d -= s;
-      if (d <= 0) return;
+  /** i's weapon w, upgraded: its damage a hit, in quarter-points. */
+  K.damage = (W, i, w) => w.dmg + (w.upgrade !== null ? W.upg[W.owner[i] * 64 + w.upgrade] * w.upg : 0);
+  /** j's armour, upgraded, in whole points. */
+  K.armour = (W, j) => { const t = PC.Data.types[W.type[j]]; return t.armor + (t.armorUpgrade !== null && W.owner[j] < C.MAX_PLAYERS ? W.upg[W.owner[j] * 64 + t.armorUpgrade] : 0); };
+
+  /** j takes a hit from i's weapon w: every one of its hits, scaled by k percent (splash). */
+  K.hit = (W, i, j, w, k = 100) => {
+    const T = PC.Data.types, tj = T[W.type[j]], arm = K.armour(W, j);
+    for (let h = 0; h < w.hits && (W.flags[j] & F.ALIVE); h++) {
+      let d = Math.floor(K.damage(W, i, w) * k / 100);
+      if (W.shield[j] > 0) {
+        const s = Math.min(W.shield[j], d);
+        W.shield[j] -= s; d -= s;
+        if (d <= 0) continue;
+      }
+      d = Math.floor(d * PC.Data.FACTOR[w.dtype][tj.size] / 100) - arm * 4;
+      if (d < 2) d = 2;
+      W.hp[j] -= d;
+      if (W.hp[j] <= 0) break;
     }
-    d = Math.floor(d * PC.Data.FACTOR[w.dtype][tj.size] / 100) - tj.armor * 4;
-    if (d < 2) d = 2;
-    W.hp[j] -= d;
     W.ev.push(["hit", j, i]);
     if (W.hp[j] <= 0) {
       W.ev.push(["die", j, W.x[j], W.y[j], W.type[j], W.owner[j]]);
@@ -119,9 +127,11 @@ globalThis.PC = globalThis.PC || {};
     if (gap <= w.range) {
       W.flags[i] &= ~F.MOVING; W.pathLen[i] = 0;
       if (W.cd[i] === 0) {
-        W.cd[i] = w.cd;
+        W.cd[i] = W.stim[i] ? w.cd >> 1 : w.cd;
         W.ev.push(["fire", i, j, w.sfx]);
+        const jx = W.x[j], jy = W.y[j];
         K.hit(W, i, j, w);
+        if (w.splash) splash(W, i, j, w, jx, jy);
       }
       return true;
     }
@@ -136,6 +146,57 @@ globalThis.PC = globalThis.PC || {};
     return true;
   };
 
-  /** Cooldowns tick down. */
-  K.cool = (W, order, count) => { for (let k = 0; k < count; k++) { const i = order[k]; if (W.cd[i]) W.cd[i]--; } };
+  /** Splash: enemies round the point struck take all, half or a quarter of the hit by how near they stand. Friends are spared. */
+  function splash(W, i, j, w, x, y) {
+    const [r1, r2, r3] = w.splash, ground = !(W.flags[j] & F.AIR);
+    K.near(W, x, y, r3, k => {
+      if (k === j || k === i || !(W.flags[k] & F.ALIVE) || !hostile(W, i, k) || (W.flags[k] & F.RESOURCE)) return;
+      if (!(W.flags[k] & F.AIR) !== ground) return;
+      const d = Math.max(0, Fx.len(W.x[k] - x, W.y[k] - y) - PC.Data.types[W.type[k]].r);
+      const pct = d <= r1 ? 100 : d <= r2 ? 50 : d <= r3 ? 25 : 0;
+      if (pct) K.hit(W, i, k, w, pct);
+    });
+  }
+
+  /** Cooldowns tick down, adrenal shots wear off, energy comes back (a point every 30 ticks). */
+  K.cool = (W, order, count) => {
+    const T = PC.Data.types, tick = W.hdr[0];
+    for (let k = 0; k < count; k++) {
+      const i = order[k];
+      if (W.cd[i]) W.cd[i]--;
+      if (W.stim[i]) W.stim[i]--;
+      const t = T[W.type[i]];
+      if (t.energy && W.energy[i] < t.energy && (tick + i) % 30 === 0) W.energy[i]++;
+    }
+  };
+
+  /* ---- healing: a healer finds the nearest hurt friend of flesh and blood and mends them ---- */
+  /** One tick of healer i: true while it has someone to mend. */
+  K.mend = (W, i, t, chase) => {
+    let j = Wo.live(W, W.target[i]);
+    const bio = k => (W.flags[k] & F.ALIVE) && PC.Data.types[W.type[k]].bio && W.hp[k] < PC.Data.types[W.type[k]].hp && !K.hostile(W, i, k) && W.owner[k] < C.MAX_PLAYERS && k !== i;
+    if (j >= 0 && !bio(j)) { W.target[i] = 0; j = -1; }
+    if (j < 0) {
+      if ((W.hdr[0] + i) % 8 !== 0) return false;
+      let bd = 6 * C.TILE_FP;
+      K.near(W, W.x[i], W.y[i], bd, k => { if (!bio(k)) return; const d = Fx.len(W.x[k] - W.x[i], W.y[k] - W.y[i]); if (d < bd) { bd = d; j = k; } });
+      if (j < 0) return false;
+      W.target[i] = Wo.id(W, j);
+    }
+    const gap = K.gap(W, i, j), h = t.heal;
+    W.facing[i] = Fx.heading(W.x[j] - W.x[i], W.y[j] - W.y[i]);
+    if (gap <= h.range) {
+      W.flags[i] &= ~F.MOVING; W.pathLen[i] = 0;
+      if ((W.hdr[0] + i) % h.every === 0 && W.energy[i] >= h.cost) {
+        W.energy[i] -= h.cost;
+        W.hp[j] = Math.min(PC.Data.types[W.type[j]].hp, W.hp[j] + h.amount);
+        if ((W.hdr[0] + i) % (h.every * 6) === 0) W.ev.push(["heal", i, j]);
+      }
+      return true;
+    }
+    if (!chase) return false;
+    if (Fx.len(W.goalX[i] - W.x[j], W.goalY[i] - W.y[j]) > C.TILE_FP || !(W.flags[i] & F.MOVING)) { W.goalX[i] = W.x[j]; W.goalY[i] = W.y[j]; W.pathLen[i] = 0; W.flags[i] |= F.MOVING; PC.Nav.want(W, i); }
+    PC.Orders.walk(W, i, t);
+    return true;
+  };
 })();

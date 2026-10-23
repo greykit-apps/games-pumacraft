@@ -22,8 +22,12 @@
  * factory falls), so two factories can never both take the last of it. The unit
  * steps out on the side nearest the building's rally point and goes there.
  *
+ * Research shares a building's queue: an entry at or above
+ * PC.Data.RESEARCH is an upgrade, paid when queued, taking its level's time
+ * and no supply, one of each under way at once.
+ *
  * Errors go out as events (W.ev) for the screen to say: "ore", "vapour",
- * "supply", "place", "queue", "tech". */
+ * "supply", "place", "queue", "tech", "busy", "done". */
 "use strict";
 globalThis.PC = globalThis.PC || {};
 (() => {
@@ -269,6 +273,19 @@ globalThis.PC = globalThis.PC || {};
       W.queue[b * 5 + W.qLen[b]] = ut.id; W.qLen[b]++;
       return;
     }
+    if (c.k === CMD.RESEARCH) {
+      const up = PC.Data.upgrades[c.tgt];
+      if (!up) return;
+      const b = buildings.find(j => !(W.flags[j] & F.UNDER_CONSTRUCTION) && W.type[j] === up.at);
+      if (b === undefined) return;
+      const why = E.canResearch(W, p, up);
+      if (why) { err(W, p, why, b); return; }
+      if (W.qLen[b] >= 5) { err(W, p, "queue", b); return; }
+      const level = W.upg[p * 64 + up.id];
+      pay(W, p, up.cost[level]);
+      W.queue[b * 5 + W.qLen[b]] = PC.Data.RESEARCH + up.id; W.qLen[b]++;
+      return;
+    }
     if (c.k === CMD.CANCEL) {
       for (const b of buildings) {
         if (W.flags[b] & F.UNDER_CONSTRUCTION) {
@@ -280,15 +297,36 @@ globalThis.PC = globalThis.PC || {};
         }
         const k = c.tgt >= 0 && c.tgt < W.qLen[b] ? c.tgt : W.qLen[b] - 1;
         if (k < 0) continue;
-        const qt = T()[W.queue[b * 5 + k]];
-        pay(W, p, qt.cost, -1);
-        if (k === 0 && W.prog[b] > 0) W.supplyUsed[p] -= qt.supply;   /* the head was holding its supply */
+        const q0 = W.queue[b * 5 + k];
+        if (q0 >= PC.Data.RESEARCH) {
+          /* research: its cost back, at the level it was for */
+          const up = PC.Data.upgrades[q0 - PC.Data.RESEARCH];
+          pay(W, p, up.cost[Math.min(up.levels - 1, W.upg[p * 64 + up.id] + pendingBefore(W, b, k, q0))], -1);
+        } else {
+          const qt = T()[q0];
+          pay(W, p, qt.cost, -1);
+          if (k === 0 && W.prog[b] > 0) W.supplyUsed[p] -= qt.supply;   /* the head was holding its supply */
+        }
         for (let m = k; m < W.qLen[b] - 1; m++) W.queue[b * 5 + m] = W.queue[b * 5 + m + 1];
         W.qLen[b]--;
         if (k === 0) W.prog[b] = 0;
       }
     }
   };
+
+  /** Why player p may not queue research up now (an error word), or null: at its last level, already under way somewhere, or a level that needs a building it lacks. */
+  E.canResearch = (W, p, up) => {
+    const level = W.upg[p * 64 + up.id];
+    if (level >= up.levels) return "done";
+    for (let j = 0; j < C.MAX_UNITS; j++) {
+      if (!(W.flags[j] & F.ALIVE) || W.owner[j] !== p || !W.qLen[j]) continue;
+      for (let k = 0; k < W.qLen[j]; k++) if (W.queue[j * 5 + k] === PC.Data.RESEARCH + up.id) return "busy";
+    }
+    if (!up.req[level].every(r => E.has(W, p, r))) return "tech";
+    if (!afford(W, p, up.cost[level])) return W.ore[p] < up.cost[level][0] ? "ore" : "vapour";
+    return null;
+  };
+  function pendingBefore(W, b, k, q0) { let n = 0; for (let m = 0; m < k; m++) if (W.queue[b * 5 + m] === q0) n++; return n; }
 
   /** Before a building is removed: give back what it stood on (a refinery's vent). */
   E.destroyed = (W, b) => {
@@ -323,6 +361,15 @@ globalThis.PC = globalThis.PC || {};
         continue;
       }
       if (!W.qLen[b]) continue;
+      if (W.queue[b * 5] >= PC.Data.RESEARCH) {
+        /* research: no supply, its level's time, then the level is the player's */
+        const up = PC.Data.upgrades[W.queue[b * 5] - PC.Data.RESEARCH], level = W.upg[p * 64 + up.id];
+        if (level >= up.levels) { W.prog[b] = 0; shift(W, b); continue; }
+        if (++W.prog[b] < up.ticks[level]) continue;
+        W.upg[p * 64 + up.id] = level + 1; W.prog[b] = 0; shift(W, b);
+        W.ev.push(["researched", b, up.id]);
+        continue;
+      }
       const ut = TT[W.queue[b * 5]];
       if (W.prog[b] === 0) {
         /* training begins: its supply is held from now, so two factories cannot both take the last of it */
@@ -338,8 +385,7 @@ globalThis.PC = globalThis.PC || {};
       const [ex, ey] = E.exitPoint(W, b, rally ? W.rallyX[b] : undefined, rally ? W.rallyY[b] : undefined);
       const u = Wo.spawn(W, ut.id, p, ut.air ? W.x[b] : ex, ut.air ? W.y[b] : ey, true, true);
       if (u < 0) { W.prog[b] = ut.buildTicks - 1; continue; }
-      for (let m = 0; m < 4; m++) W.queue[b * 5 + m] = W.queue[b * 5 + m + 1];
-      W.qLen[b]--; W.prog[b] = 0;
+      shift(W, b); W.prog[b] = 0;
       W.facing[u] = 64;
       W.ev.push(["trained", u, b]);
       if (rally) {
@@ -349,5 +395,6 @@ globalThis.PC = globalThis.PC || {};
       }
     }
   };
+  function shift(W, b) { for (let m = 0; m < 4; m++) W.queue[b * 5 + m] = W.queue[b * 5 + m + 1]; W.qLen[b]--; }
   C.SUPPLY_MAX = 200;
 })();
