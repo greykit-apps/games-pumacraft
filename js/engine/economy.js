@@ -17,7 +17,9 @@
  *
  * Training. A building trains from a queue five deep; the cost is paid when
  * a unit is queued and refunded if it is cancelled. The head of the queue
- * waits, at no cost, while its owner lacks the supply for it. The unit
+ * waits, at no cost, while its owner lacks the supply for it; once it
+ * begins, its supply is held until it is born (or cancelled, or its
+ * factory falls), so two factories can never both take the last of it. The unit
  * steps out on the side nearest the building's rally point and goes there.
  *
  * Errors go out as events (W.ev) for the screen to say: "ore", "vapour",
@@ -278,7 +280,9 @@ globalThis.PC = globalThis.PC || {};
         }
         const k = c.tgt >= 0 && c.tgt < W.qLen[b] ? c.tgt : W.qLen[b] - 1;
         if (k < 0) continue;
-        pay(W, p, T()[W.queue[b * 5 + k]].cost, -1);
+        const qt = T()[W.queue[b * 5 + k]];
+        pay(W, p, qt.cost, -1);
+        if (k === 0 && W.prog[b] > 0) W.supplyUsed[p] -= qt.supply;   /* the head was holding its supply */
         for (let m = k; m < W.qLen[b] - 1; m++) W.queue[b * 5 + m] = W.queue[b * 5 + m + 1];
         W.qLen[b]--;
         if (k === 0) W.prog[b] = 0;
@@ -320,15 +324,19 @@ globalThis.PC = globalThis.PC || {};
       }
       if (!W.qLen[b]) continue;
       const ut = TT[W.queue[b * 5]];
-      if (W.prog[b] === 0 && ut.supply && W.supplyUsed[p] + ut.supply > Math.min(W.supplyCap[p], C.SUPPLY_MAX)) {
-        if ((W.hdr[0] + b) % 96 === 0) err(W, p, "supply", b);
-        continue;
+      if (W.prog[b] === 0) {
+        /* training begins: its supply is held from now, so two factories cannot both take the last of it */
+        if (ut.supply && W.supplyUsed[p] + ut.supply > Math.min(W.supplyCap[p], C.SUPPLY_MAX)) {
+          if ((W.hdr[0] + b) % 96 === 0) err(W, p, "supply", b);
+          continue;
+        }
+        W.supplyUsed[p] += ut.supply;
       }
       if (++W.prog[b] < ut.buildTicks) continue;
       /* out it comes */
       const rally = W.rallyX[b] || W.rallyY[b];
       const [ex, ey] = E.exitPoint(W, b, rally ? W.rallyX[b] : undefined, rally ? W.rallyY[b] : undefined);
-      const u = Wo.spawn(W, ut.id, p, ut.air ? W.x[b] : ex, ut.air ? W.y[b] : ey);
+      const u = Wo.spawn(W, ut.id, p, ut.air ? W.x[b] : ex, ut.air ? W.y[b] : ey, true, true);
       if (u < 0) { W.prog[b] = ut.buildTicks - 1; continue; }
       for (let m = 0; m < 4; m++) W.queue[b * 5 + m] = W.queue[b * 5 + m + 1];
       W.qLen[b]--; W.prog[b] = 0;

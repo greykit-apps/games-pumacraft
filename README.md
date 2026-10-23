@@ -8,7 +8,7 @@
 
 ## How it plays
 
-PumaCraft is being built. Open now is **skirmish** against training targets (bases that mine but do not build or attack), on the drawn Proving Ground or a map made from any seed, as the Pumacity Defense Force: mining, building, training and fighting, with three save slots. The computer opponent and the campaign come next. When it is whole, it plays like this.
+PumaCraft is being built. Open now is **skirmish** against the computer (easy, normal or hard), on the drawn Proving Ground or a map made from any seed, as the Pumacity Defense Force: mining, building, training and fighting, with three save slots. The rest of the PDF's roster, the other two powers and the campaign come next. When it is whole, it plays like this.
 
 Mine ore and draw vapour, raise a base, train an army and break your enemy's. Three powers fight over the Reach: the Pumacity Defense Force, the Wolf Empire's Horde and an older power the war has woken, each with its own units, buildings, upgrades and way of growing. Skirmish against the computer on drawn or generated maps, or play a campaign of three acts, one for each power. The art is painted 16-bit pixel art, and the score follows the battle, rising as it does.
 

@@ -24,6 +24,7 @@ globalThis.PC = globalThis.PC || {};
   /** Queues a command; it takes effect at tick cmd.t (no earlier than the current one). */
   O.issue = (W, cmd) => {
     const c = { t: Math.max(cmd.t | 0, W.hdr[0]), p: cmd.p | 0, k: cmd.k | 0, u: (cmd.u || []).map(v => v | 0), x: cmd.x | 0, y: cmd.y | 0, tgt: cmd.tgt | 0, q: cmd.q ? 1 : 0, s: W.hdr[2]++ };
+    if (cmd.ai) c.ai = 1;   /* the bot's own: a replay runs the bot again rather than replaying these */
     let i = W.pending.length;
     while (i > 0) { const o = W.pending[i - 1]; if (o.t < c.t || (o.t === c.t && (o.p < c.p || (o.p === c.p && o.s < c.s)))) break; i--; }
     W.pending.splice(i, 0, c);
@@ -35,7 +36,7 @@ globalThis.PC = globalThis.PC || {};
     const t = W.hdr[0];
     while (W.pending.length && W.pending[0].t <= t) {
       const c = W.pending.shift();
-      W.log.push(c);
+      if (!c.ai) W.log.push(c);
       apply(W, c);
     }
   };

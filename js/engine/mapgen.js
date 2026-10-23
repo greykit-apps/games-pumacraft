@@ -232,7 +232,10 @@ globalThis.PC = globalThis.PC || {};
       for (let j = -1; j <= hh && !ok; j++) for (let i = -1; i <= w && !ok; i++) if (inside(r.x + i, r.y + j) && reach[at(r.x + i, r.y + j)] >= 0) ok = true;
       if (!ok) return fail("a resource cannot be walked to");
     }
-    return { name: `Generated ${n} x ${n}`, players, rows: rows(n, h, kind), starts: startDefs, resources, natural: nat };
+    /* every base site, mains first: where a hall goes, for the bot's expansions */
+    const bases = startDefs.slice();
+    if (nat) for (const [ix, iy] of images(nat[0], nat[1], n, players)) bases.push({ x: ix, y: iy + 0.5 });
+    return { name: `Generated ${n} x ${n}`, players, rows: rows(n, h, kind), starts: startDefs, bases, resources, natural: nat };
   }
 
   /** Makes every set of turned copies agree: rock if any is rock, else a ramp if any
