@@ -19,6 +19,10 @@ globalThis.PC = globalThis.PC || {};
   /* original pixels to engine fixed point, rounded down */
   const px = v => Math.floor(v * C.ORIG_PX_NUM * C.ONE / C.ORIG_PX_DEN);
   const q = v => Math.round(v * 4);   /* whole points to quarter-points */
+  /* damage types against unit sizes, percent: [small, medium, large] (the
+     original's table, which is general knowledge of how it played) */
+  const DTYPE = { normal: 0, concussive: 1, explosive: 2 };
+  D.FACTOR = [[100, 100, 100], [100, 50, 25], [50, 75, 100]];
 
   function addType(key, kind, faction, d) {
     if (D.byKey[key]) throw new Error("type registered twice: " + key);
@@ -29,7 +33,15 @@ globalThis.PC = globalThis.PC || {};
       air: !!d.air, worker: !!d.worker, supply: d.supply || 0, supplyGive: d.supplyGive || 0,
       cost: d.cost || [0, 0], buildTicks: d.buildTicks || 0,
       foot: d.foot || null, art: d.art || key, hotkey: d.hotkey || null, raw: d,
+      /* weapons: damage in quarter-points, range in fixed point from edge to edge, cooldown in ticks */
+      weapons: (d.weapons || []).map(w => ({ name: w.name || "", dmg: q(w.dmg), dtype: DTYPE[w.type || "normal"], range: px(w.range || 0), cd: w.cd || 15,
+        air: w.air !== false && !!w.air, ground: w.ground !== false, upg: q(w.upg || 0), splash: w.splash ? w.splash.map(px) : null, sfx: w.sfx || key })),
+      acquire: px((d.acquire || 0) * 32),
+      trains: d.trains || [], builds: d.builds || [], req: d.req || [],
+      dropoff: !!d.dropoff, onVapour: !!d.onVapour, amount: d.amount || 0, gather: d.gather || 0,
+      mine: d.mine || 0, carry: d.carry || 0,
     };
+    if (t.foot) t.r = Math.floor(Math.min(t.foot[0], t.foot[1]) * C.TILE_FP / 2);
     D.types.push(t);
     D.byKey[key] = t;
     D.order.push(key);
@@ -42,5 +54,11 @@ globalThis.PC = globalThis.PC || {};
     for (const [k, b] of Object.entries(def.buildings || {})) D.factions[id].buildings.push(addType(k, "building", id, b).id);
   };
   D.neutral = defs => { for (const [k, d] of Object.entries(defs)) addType(k, d.kind || "resource", "neutral", d); };
+  /** Resolves the keys a type names (trains, builds, req) into type ids, once every file has loaded. */
+  D.finish = () => {
+    if (D.finished) return;
+    for (const t of D.types.slice(1)) for (const k of ["trains", "builds", "req"]) t[k] = t[k].map(x => typeof x === "number" ? x : D.type(x).id);
+    D.finished = true;
+  };
   D.type = key => { const t = D.byKey[key]; if (!t) throw new Error("no such type: " + key); return t; };
 })();

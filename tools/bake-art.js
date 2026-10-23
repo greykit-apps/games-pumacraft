@@ -39,7 +39,7 @@ function paintRecipe(PC, r) {
   for (const [anim, a] of Object.entries(r.anims)) {
     const facings = a.facings || r.facings;
     for (let f = 0; f < a.n; f++) for (let k = 0; k < facings; k++) {
-      const heading = facings === 1 ? 90 : k * 360 / facings;
+      const heading = facings === 1 ? (r.heading !== undefined ? r.heading : 90) : k * 360 / facings;
       const rgba = PC.Paint.frame(r.parts(anim, f, a.n), heading, bw, bh, ox, oy, PC.PAL);
       const rect = PC.Paint.trim(rgba, bw, bh);
       out.push({ anim, f, facing: k, rgba, w: bw, h: bh, rect, ax: ox, ay: oy });

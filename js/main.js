@@ -41,7 +41,12 @@
   const help = [
     ["Playing", "<p><strong>PumaCraft is being built.</strong> It will be real-time strategy in the Grey Reach: gather ore and vapour, raise a base, " +
       "train an army and break your enemy's, as one of three powers that play nothing alike.</p>" +
-      "<p>Skirmish against the computer on drawn or generated maps, and a campaign of three acts, one for each power, will open here as they are finished.</p>"],
+      "<p>Skirmish against the computer on drawn or generated maps, and a campaign of three acts, one for each power, will open here as they are finished. The practice range is open now: your base against one that does not fight back yet.</p>"],
+    ["In the game", "<p>Left-click or drag to select your units; right-click to move, attack, gather ore or vapour, or set a building's rally point. Shift queues an order behind the last. Every button on the command card has its letter.</p>" +
+      '<table class="pc-keys"><tr><td><kbd>Ctrl</kbd>+<kbd>0</kbd>&ndash;<kbd>9</kbd></td><td>Make a control group; <kbd>0</kbd>&ndash;<kbd>9</kbd> calls it, twice to look at it</td></tr>' +
+      '<tr><td><kbd>F1</kbd></td><td>The next idle engineer</td></tr><tr><td><kbd>Backspace</kbd></td><td>Your command post</td></tr>' +
+      '<tr><td><kbd>&larr;</kbd> <kbd>&uarr;</kbd> <kbd>&rarr;</kbd> <kbd>&darr;</kbd></td><td>Scroll (or touch the screen&rsquo;s edge)</td></tr>' +
+      '<tr><td><kbd>F10</kbd> <kbd>Esc</kbd></td><td>Pause and the menu</td></tr></table>'],
     ["Keys", '<table class="pc-keys"><tr><td><kbd>M</kbd></td><td>Sound on or off, anywhere</td></tr>' +
       '<tr><td><kbd>S</kbd> <kbd>?</kbd> <kbd>A</kbd></td><td>Settings, Help, About</td></tr>' +
       '<tr><td><kbd>&uarr;</kbd> <kbd>&darr;</kbd> <kbd>Enter</kbd></td><td>Move through the menu</td></tr>' +
@@ -58,25 +63,18 @@
 
   /* ---- the boot and the title (§3, §14) ---- */
   const q = new URLSearchParams(location.search);
-  /* ?sandbox: straight to the engine's test bed, no boot (js/sandbox.js) */
-  if (q.has("sandbox")) {
-    document.getElementById("title-host").hidden = true;
-    PC.Sheets.load().then(() => PC.Sandbox.start()).catch(e => alertSheet(String(e.message || e), "The sandbox could not start"));
-    return;
-  }
-  const intro = startIntro({ audio: A.ctx, lines: [
-    bootReloadLine(),
-    gkFact("build", "front door"),
-    gkFlavour(["charting the Grey Reach", "warming the forge plates", "counting ore on the survey charts", "the dropship is fuelled",
-      "the beacon is answering", "plotting a course past the charted stars", "the Reach is quiet tonight"],
-      ["the cat has taken the command chair", "the cat is sitting on the map"], q.has("rare") ? 1 : 12),
-  ] });
-  injectTitleCSS();
-  mountTitle(document.getElementById("title-host"), {
-    name: "PumaCraft", lines: ["Puma", "Craft"], sub: "War in the Grey Reach", primary: "skirmish", scene: PC.titleScene,
+  const titleHost = document.getElementById("title-host");
+  const TOGGLES = { sound: { get: () => !A.muted, set: on => A.setMuted(!on) }, music: { get: () => A.musicOn, set: A.setMusic } };
+  const tick = () => gkTick(A.ac, A.fx);
+  let titleUI = null, stopScene = null, toggles = null;
+  const refreshToggles = () => { if (toggles) toggles.refresh(); };
+  const titleCfg = {
+    name: "PumaCraft", lines: ["Puma", "Craft"], sub: "War in the Grey Reach", primary: "skirmish",
+    scene: el => { stopScene = PC.titleScene(el); },
     items: [
       { act: "skirmish", label: "Skirmish", key: "N", meta: "soon" },
       { act: "campaign", label: "Campaign", key: "C", meta: "soon" },
+      { act: "practice", label: "Practice range", key: "P", meta: "no opponent yet" },
       "gap",
       { act: "settings", label: "Settings", key: "S" },
       { act: "help", label: "Help", key: "?" },
@@ -86,20 +84,51 @@
     onAct(act) {
       if (act === "skirmish") soon("Skirmish");
       else if (act === "campaign") soon("The campaign");
+      else if (act === "practice") practice();
     },
-  });
+  };
 
-  let toggles = null;
-  const refreshToggles = () => { if (toggles) toggles.refresh(); };
-  intro.finish({
-    prefix: S.PREFIX,   /* the boot counts this game's saved keys */
-    hold: q.get("hold") || "auto",
-    name: "lines",
-    toggles: { sound: { get: () => !A.muted, set: on => A.setMuted(!on) }, music: { get: () => A.musicOn, set: A.setMusic } },
-    tick: () => gkTick(A.ac, A.fx),
-    onContinue: () => { const ac = A.ctx(); if (ac) ac.resume(); },
-    onTitle: () => A.startTheme(),
-  }).then(r => { toggles = r.toggles; });
+  /* a game takes the screen: the title steps aside (its keys and its scene with it), and comes back after */
+  const leaveTitle = () => {
+    if (titleUI) { titleUI.unmount(); titleUI = null; }
+    if (stopScene) { stopScene(); stopScene = null; }
+    titleHost.hidden = true; titleHost.innerHTML = ""; toggles = null;
+    A.stopTheme();
+  };
+  const backToTitle = () => {
+    titleHost.hidden = false;
+    titleUI = mountTitle(titleHost, titleCfg);
+    toggles = gkIntegrate(titleHost.querySelector(".gk-title"), { toggles: TOGGLES, tick });
+    titleUI.reveal();
+    A.startTheme();
+  };
+  const practice = () => {
+    leaveTitle();
+    PC.Sheets.load().then(() => PC.Practice.start(backToTitle))
+      .catch(e => { backToTitle(); alertSheet(String(e.message || e), "The game could not start"); });
+  };
+
+  injectTitleCSS();
+  /* ?sandbox: straight to the practice range, no boot */
+  if (q.has("sandbox")) { practice(); }
+  else {
+    const intro = startIntro({ audio: A.ctx, lines: [
+      bootReloadLine(),
+      gkFact("build", "practice range"),
+      gkFlavour(["charting the Grey Reach", "warming the forge plates", "counting ore on the survey charts", "the dropship is fuelled",
+        "the beacon is answering", "plotting a course past the charted stars", "the Reach is quiet tonight"],
+        ["the cat has taken the command chair", "the cat is sitting on the map"], q.has("rare") ? 1 : 12),
+    ] });
+    titleUI = mountTitle(titleHost, titleCfg);
+    intro.finish({
+      prefix: S.PREFIX,   /* the boot counts this game's saved keys */
+      hold: q.get("hold") || "auto",
+      name: "lines",
+      toggles: TOGGLES, tick,
+      onContinue: () => { const ac = A.ctx(); if (ac) ac.resume(); },
+      onTitle: () => A.startTheme(),
+    }).then(r => { toggles = r.toggles; });
+  }
 
   /* M is the master switch anywhere (§8); the switches follow it */
   addEventListener("keydown", ev => {

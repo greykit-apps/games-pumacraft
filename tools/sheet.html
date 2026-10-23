@@ -32,7 +32,9 @@
 <script src="../js/art/paint.js"></script>
 <script src="../js/art/pal.js"></script>
 <script src="../js/art/recipes.js"></script>
+<script src="../js/art/recipes/a_buildings.js"></script>
 <script src="../js/art/recipes/a_units.js"></script>
+<script src="../js/art/recipes/neutral.js"></script>
 <script src="../js/art/recipes/terrain.js"></script>
 <script>
 "use strict";
@@ -56,7 +58,7 @@ function draw() {
       const row = document.createElement("div"); row.className = "row " + $("ground").value;
       const lab = document.createElement("div"); lab.className = "lab"; lab.textContent = "frame " + f; row.appendChild(lab);
       for (let k = 0; k < facings; k++) {
-        const rgba = PC.Paint.frame(r.parts(anim, f, a.n), facings === 1 ? 90 : k * 360 / facings, bw, bh, ox, oy, pal);
+        const rgba = PC.Paint.frame(r.parts(anim, f, a.n), facings === 1 ? (r.heading !== undefined ? r.heading : 90) : k * 360 / facings, bw, bh, ox, oy, pal);
         const c = document.createElement("canvas"); c.width = bw; c.height = bh; c.style.width = bw * Z + "px"; c.style.height = bh * Z + "px";
         const g = c.getContext("2d"), im = g.createImageData(bw, bh); im.data.set(rgba); g.putImageData(im, 0, 0);
         c.title = `${anim} frame ${f}, facing ${k}`;

@@ -1,6 +1,6 @@
 # PumaCraft: development
 
-Plain scripts, no build step, nothing fetched at play time. Serve the repo root over http (`python3 -m http.server 8790`) and open it; `?hold=always` forces the boot's hold, `?rare` the rare boot line.
+Plain scripts, no build step, nothing fetched at play time. Serve the repo root over http (`python3 -m http.server 8790`) and open it; `?hold=always` forces the boot's hold, `?rare` the rare boot line, `?sandbox` goes straight to the practice range.
 
 ## What is where
 
@@ -11,15 +11,17 @@ Plain scripts, no build step, nothing fetched at play time. Serve the repo root 
 | `js/audio.js` | The sound buses and the title theme, all synthesised. |
 | `js/scene.js` | The title's scene, painted into a 320x180 buffer. |
 | `js/main.js` | The title, its menu, Settings, Help and About. |
-| `js/engine/` | The simulation: DOM-free and deterministic. `const.js` says the rules that keep it so. |
+| `js/engine/` | The simulation: DOM-free and deterministic. `const.js` says the rules that keep it so; `sim.js` the order of a tick. Movement (`nav.js`, `orders.js`), the fight (`combat.js`), the economy (`economy.js`), who sees what (`vision.js`). |
 | `js/data/` | Each faction's units and buildings, in the original's measures (`js/engine/data.js` converts them). |
 | `js/maps/` | Maps, one character a tile (`js/engine/map.js` has the key). |
 | `js/art/paint.js`, `js/art/pal.js` | The painter and its palette: sprites are small 3D part models, ray-cast a pixel at a time and lit by one sun. |
 | `js/art/recipes/` | What every sprite and ground tile is painted from. |
 | `art/`, `js/art/atlas.js` | The baked sheets and where every frame is in them. Written by `tools/bake-art.js`; never edit by hand. |
 | `js/art/sheets.js` | Loads the sheets and repaints the team magentas in each player's colour. |
-| `js/render/` | The ground in cached chunks, the units, the view and the frame loop. |
-| `js/sandbox.js` | `?sandbox`: the Proving Ground with two armies, for watching the engine and the art together. |
+| `js/render/` | The ground in cached chunks, the units, the fog and minimap, the view and the frame loop. |
+| `js/ui/play.js` | The play screen: selection, the smart right-click, the command card, building, control groups, the HUD. |
+| `js/practice.js` | The practice range: your base against one that does not fight back yet. `?sandbox` opens it straight away. |
+| `js/audio/sfx.js` | Every sound effect, synthesised, panned by where it happens. |
 | `tools/png.js` | The PNG and ICO writers. |
 | `tools/lib.js` | Loads the engine headless, in `index.html`'s own script order. |
 

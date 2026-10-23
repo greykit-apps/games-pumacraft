@@ -5,7 +5,17 @@
 "use strict";
 PC.Map.register({
   id: "proving", name: "Proving Ground", players: 2,
-  starts: [{ x: 8, y: 7 }, { x: 55, y: 56 }],
+  /* each start is where the town hall's centre goes, in tiles */
+  starts: [{ x: 8, y: 7.5 }, { x: 55, y: 56.5 }],
+  /* resources by the top-left tile of their footprint (ore 2 x 1, vapour 4 x 2) */
+  resources: [
+    { t: "ore", x: 1, y: 1 }, { t: "ore", x: 3, y: 1 }, { t: "ore", x: 1, y: 3 }, { t: "ore", x: 1, y: 5 },
+    { t: "ore", x: 1, y: 7 }, { t: "ore", x: 1, y: 9 }, { t: "ore", x: 1, y: 11 }, { t: "ore", x: 5, y: 1 },
+    { t: "vapour", x: 10, y: 1 },
+    { t: "ore", x: 61, y: 50 }, { t: "ore", x: 61, y: 52 }, { t: "ore", x: 61, y: 54 }, { t: "ore", x: 61, y: 56 },
+    { t: "ore", x: 61, y: 58 }, { t: "ore", x: 61, y: 60 }, { t: "ore", x: 59, y: 62 }, { t: "ore", x: 57, y: 62 },
+    { t: "vapour", x: 49, y: 61 },
+  ],
   rows: [
     "################################################################",
     "#:::::::::::::::,,,............................................#",
