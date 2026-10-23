@@ -347,6 +347,38 @@ for (let seed = 1; seed <= SEEDS; seed++) {
   invariants(PC, W, "research, the shot, splash and healing");
 }
 
+/* ---- siege mode ---- */
+{
+  const PC = load(), C = PC.C, F = C.F, T = k => PC.Data.type(k), fp = v => Math.floor(v * C.TILE_FP);
+  const W = PC.Sim.create("proving", [{ faction: "a", team: 0 }, { faction: "a", team: 1 }], 31, { bases: true });
+  const id = i => PC.World.id(W, i), spawn = (k, p, x, y) => PC.World.spawn(W, T(k).id, p, fp(x), fp(y));
+  const gun = spawn("a_howitzer", 0, 24, 40), siege = { tgt: PC.Orders.ABILITY.siege, x: 0 };
+  PC.Orders.issue(W, Object.assign({ t: W.hdr[0], p: 0, k: C.CMD.ABILITY, u: [id(gun)] }, siege));
+  PC.Sim.step(W);
+  if (W.mode[gun]) fail("a howitzer dug in before siege mode was researched"); else ok("siege mode waits for its research");
+  W.upg[PC.Data.upgrade("a_siege").id] = 1;
+  PC.Orders.issue(W, Object.assign({ t: W.hdr[0], p: 0, k: C.CMD.ABILITY, u: [id(gun)] }, siege));
+  PC.Sim.run(W, W.hdr[0] + 2);
+  const dep = PC.Data.types[W.type[gun]].siege.deploy;
+  if (W.mode[gun] !== 2) fail(`a howitzer told to dig in is in mode ${W.mode[gun]}`);
+  PC.Sim.run(W, W.hdr[0] + dep);
+  if (W.mode[gun] !== 1) fail(`a howitzer was not dug in ${dep} ticks after it began (mode ${W.mode[gun]})`); else ok(`a howitzer digs in in ${dep} ticks`);
+  const x0 = W.x[gun];
+  PC.Orders.issue(W, { t: W.hdr[0], p: 0, k: C.CMD.MOVE, u: [id(gun)], x: fp(40), y: fp(40) });
+  PC.Sim.run(W, W.hdr[0] + 48);
+  if (W.x[gun] !== x0) fail("a dug-in howitzer moved when told to"); else ok("a dug-in howitzer stays where it is");
+  /* it reaches far, and will not aim at a foe under its barrel (splash may still reach one) */
+  /* within its sight (ten tiles) but past its tank-mode range (seven): a dug-in gun reaches it */
+  const far = spawn("a_trooper", 1, 33.5, 40), close = spawn("a_trooper", 1, 24.9, 40.6);
+  PC.Sim.run(W, W.hdr[0] + 120);
+  if (PC.World.live(W, id(far)) >= 0 && W.hp[far] === PC.Data.types[W.type[far]].hp) fail("a dug-in howitzer did not shell a trooper nine tiles off"); else ok("a dug-in howitzer shells a trooper nine tiles off, past its tank-mode reach");
+  if (W.target[gun] && PC.World.live(W, W.target[gun]) === close) fail("a dug-in howitzer aimed at a foe under its barrel"); else ok("a dug-in howitzer will not aim at a foe under its barrel");
+  PC.Orders.issue(W, { t: W.hdr[0], p: 0, k: C.CMD.ABILITY, u: [id(gun)], tgt: PC.Orders.ABILITY.siege, x: 2 });
+  PC.Sim.run(W, W.hdr[0] + dep + 4);
+  if (W.mode[gun] !== 0) fail("a howitzer told to pack up did not"); else ok("a howitzer packs up again");
+  invariants(PC, W, "siege mode");
+}
+
 /* ---- the computer against itself ---- */
 {
   const BOTS = [{ faction: "a", team: 0, ai: "normal" }, { faction: "a", team: 1, ai: "normal" }];

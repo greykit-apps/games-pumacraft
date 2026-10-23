@@ -158,4 +158,17 @@
       box([-30, 28.4, 9], [6, 0.3, 2.5], "glass", { glow: true, step: 1 }),
     ], 4, 3),
   });
+  /* ---- the Ordnance Works: guns and plate for the vehicles ---- */
+  add("a_armory", {
+    sheet: "buildings_a", facings: 1, heading: 0, box: frameFor(3, 2, 48),
+    anims: { idle: { n: 1, fps: 1 }, work: { n: 4, fps: 6 }, build: { n: 3, fps: 1 }, death: { n: 5, fps: 8 } },
+    parts: building((anim, f) => [
+      box([0, 2, 6], [31, 18, 6], "gunmetal"),
+      box([-8, -2, 15], [20, 12, 3], "steel"),
+      cyl([18, 4, 15], [6, 6, 3], "steel"),
+      box([18, 4, 19], [7, 1, 1], "gunmetal", { rot: [anim === "work" ? f * 22 : 0, 0, 0] }),
+      box([0, 20.3, 6], [14, 0.4, 4], "rubber"), box([0, 20.6, 11], [14, 0.3, 0.6], "team"),
+      cyl([-24, 10, 14], [2, 2, 4], "gunmetal"), ball([-24, 10, 19], [2, 2, 1.4], "fire", { glow: anim === "work", step: f % 2 ? 2 : 3 }),
+    ], 3, 2),
+  });
 })();

@@ -1,6 +1,7 @@
 /* PumaCraft map -- the Proving Ground: a 64 x 64 test map. High mains in
- * opposite corners, each with a middle step and two ramps down; a lake in
- * the centre, two woods and two rock outcrops. Used by tools/sim-check.js
+ * opposite corners, each with a middle step and two ramps down, and an
+ * expansion on the low ground beyond; a lake in the centre, two woods and
+ * two rock outcrops. Used by tools/sim-check.js
  * and the sandbox. Tiles: see js/engine/map.js. */
 "use strict";
 PC.Map.register({
@@ -15,7 +16,14 @@ PC.Map.register({
     { t: "ore", x: 61, y: 50 }, { t: "ore", x: 61, y: 52 }, { t: "ore", x: 61, y: 54 }, { t: "ore", x: 61, y: 56 },
     { t: "ore", x: 61, y: 58 }, { t: "ore", x: 61, y: 60 }, { t: "ore", x: 59, y: 62 }, { t: "ore", x: 57, y: 62 },
     { t: "vapour", x: 49, y: 61 },
+    /* the two expansions, each side's turned copy of the other */
+    { t: "ore", x: 48, y: 2 }, { t: "ore", x: 48, y: 4 }, { t: "ore", x: 48, y: 6 }, { t: "ore", x: 48, y: 8 }, { t: "ore", x: 48, y: 10 }, { t: "ore", x: 46, y: 11 },
+    { t: "vapour", x: 33, y: 5 },
+    { t: "ore", x: 14, y: 61 }, { t: "ore", x: 14, y: 59 }, { t: "ore", x: 14, y: 57 }, { t: "ore", x: 14, y: 55 }, { t: "ore", x: 14, y: 53 }, { t: "ore", x: 16, y: 52 },
+    { t: "vapour", x: 27, y: 57 },
   ],
+  /* where a hall goes: the mains, then the expansions */
+  bases: [{ x: 8, y: 7.5 }, { x: 55, y: 56.5 }, { x: 42, y: 6.5 }, { x: 22, y: 57.5 }],
   rows: [
     "################################################################",
     "#:::::::::::::::,,,............................................#",

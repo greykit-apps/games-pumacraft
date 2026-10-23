@@ -88,15 +88,22 @@ globalThis.PC = globalThis.PC || {};
       if (units.indexOf(i) < 0) units.push(i);
     }
     if (!units.length) return;
-    /* buildings take production commands; everything else takes orders */
-    const buildings = units.filter(i => W.flags[i] & F.BUILDING), mobile = units.filter(i => !(W.flags[i] & F.BUILDING));
+    /* buildings take production commands; everything else takes orders -- except a unit dug in, or digging, which can only fight or pack up */
+    const buildings = units.filter(i => W.flags[i] & F.BUILDING), mobile = units.filter(i => !(W.flags[i] & F.BUILDING) && (W.mode[i] === 0 || c.k === CMD.ABILITY || c.k === CMD.STOP || (c.k === CMD.ATTACK && c.tgt && W.mode[i] === 1)));
     if (c.k === CMD.TRAIN || c.k === CMD.CANCEL || c.k === CMD.RALLY || c.k === CMD.RESEARCH) { PC.Econ.command(W, c, buildings); return; }
     if (c.k === CMD.ABILITY) { ability(W, c, units); return; }
     if (!mobile.length) return;
     const x = clampX(W, c.x), y = clampY(W, c.y);
     if (c.k === CMD.STOP) { for (const i of mobile) { W.oLen[i] = 0; W.target[i] = 0; W.flags[i] &= ~F.MOVING; W.pathLen[i] = 0; W.pathWant[i] = 0; } return; }
     if (c.k === CMD.HOLD) { for (const i of mobile) O.give(W, i, ORD.HOLD, W.x[i], W.y[i], 0, c.q); return; }
-    if (c.k === CMD.ATTACK && c.tgt) { for (const i of mobile) if (PC.Data.types[W.type[i]].weapons.length) O.give(W, i, ORD.ATTACK, 0, 0, c.tgt, c.q); return; }
+    if (c.k === CMD.ATTACK && c.tgt) {
+      for (const i of mobile) {
+        if (!PC.Data.types[W.type[i]].weapons.length) continue;
+        if (W.mode[i] === 1) W.target[i] = c.tgt;   /* dug in: it turns its gun, it does not go */
+        else O.give(W, i, ORD.ATTACK, 0, 0, c.tgt, c.q);
+      }
+      return;
+    }
     if (c.k === CMD.GATHER) { for (const i of mobile) if (W.flags[i] & F.WORKER) O.give(W, i, ORD.GATHER, 0, 0, c.tgt, c.q); return; }
     if (c.k === CMD.RETURN) { for (const i of mobile) if ((W.flags[i] & F.WORKER) && W.carry[i]) O.give(W, i, ORD.RETURN, 0, 0, 0, c.q); return; }
     if (c.k === CMD.BUILD) { const i = mobile.find(j => W.flags[j] & F.WORKER); if (i !== undefined) O.give(W, i, ORD.BUILD, x, y, c.tgt, c.q); return; }
@@ -120,9 +127,26 @@ globalThis.PC = globalThis.PC || {};
   }
 
   /* ---- abilities a unit uses on itself, by number: 1 the adrenal shot ---- */
-  O.ABILITY = { stim: 1 };
+  O.ABILITY = { stim: 1, siege: 2 };
   function ability(W, c, units) {
     const T = PC.Data.types;
+    if (c.tgt === O.ABILITY.siege) {
+      /* dig in, or pack up: each unit by the state it is in */
+      const up = PC.Data.upByKey.a_siege, dig = c.x !== 2;   /* x 2 asks to pack up; anything else, to dig in (or toggle with x 1) */
+      for (const i of units) {
+        const t = T[W.type[i]];
+        if (!t.siege) continue;
+        const toggle = c.x === 1;
+        if (W.mode[i] === 0 && (dig || toggle) && up && W.upg[c.p * 64 + up.id]) {
+          W.mode[i] = 2; W.modeT[i] = t.siege.deploy; W.oLen[i] = 0; W.target[i] = 0; W.flags[i] &= ~F.MOVING; W.pathLen[i] = 0;
+          W.ev.push(["siege", i, 1]);
+        } else if (W.mode[i] === 1 && (!dig || toggle)) {
+          W.mode[i] = 3; W.modeT[i] = t.siege.deploy; W.target[i] = 0;
+          W.ev.push(["siege", i, 0]);
+        }
+      }
+      return;
+    }
     if (c.tgt === O.ABILITY.stim) {
       const up = PC.Data.upByKey.a_stim;
       if (!up || !W.upg[c.p * 64 + up.id]) return;
@@ -138,8 +162,8 @@ globalThis.PC = globalThis.PC || {};
   }
 
   /* ---- the step ---- */
-  const reachOf = t => { let r = t.acquire; for (const w of t.weapons) if (w.range > r) r = w.range; return r; };
-  const shortest = t => { let r = 1 << 30; for (const w of t.weapons) if (w.range < r) r = w.range; return r; };
+  const reachOf = (W, i, t) => { let r = t.acquire; for (const w of PC.Combat.weapons(W, i)) if (w.range > r) r = w.range; return r; };
+  const shortest = (W, i) => { let r = 1 << 30; for (const w of PC.Combat.weapons(W, i)) if (w.range < r) r = w.range; return r; };
 
   /** Every unit does its head order; order is the live slots, lowest first. */
   O.step = (W, order, count) => {
@@ -149,8 +173,15 @@ globalThis.PC = globalThis.PC || {};
       W.px[i] = W.x[i]; W.py[i] = W.y[i];
       const fl = W.flags[i];
       if (!(fl & F.ALIVE) || (fl & (F.BUILDING | F.RESOURCE))) continue;   /* killed earlier this tick, or not a unit */
-      const t = T[W.type[i]], kind = O.headKind(W, i), s = slot(W, i, 0), armed = t.weapons.length > 0 && !(fl & F.WORKER);
+      const t = T[W.type[i]], s = slot(W, i, 0), armed = t.weapons.length > 0 && !(fl & F.WORKER);
       const scan = armed && (tick + i) % 8 === 0;
+      if (W.mode[i] >= 2) {
+        /* digging in or packing up: nothing else until it is done */
+        if (--W.modeT[i] === 0) W.mode[i] = W.mode[i] === 2 ? 1 : 0;
+        continue;
+      }
+      /* dug in, a unit fights where it stands, as if held */
+      const kind = W.mode[i] === 1 ? ORD.HOLD : O.headKind(W, i);
       if (t.heal && (kind === ORD.IDLE || kind === ORD.HOLD || kind === ORD.AMOVE)) {
         /* a healer mends where it stands (held), or goes to who needs it; on an attack-move it mends on the way */
         if (PC.Combat.mend(W, i, t, kind !== ORD.HOLD)) continue;
@@ -160,7 +191,7 @@ globalThis.PC = globalThis.PC || {};
         if (W.target[i]) {
           if (!PC.Combat.fight(W, i, W.target[i], kind === ORD.HOLD ? -1 : 3 * C.TILE_FP)) { W.target[i] = 0; W.flags[i] &= ~F.MOVING; W.pathLen[i] = 0; }
         } else if (scan) {
-          const j = PC.Combat.acquire(W, i, kind === ORD.HOLD ? shortest(t) : reachOf(t));
+          const j = PC.Combat.acquire(W, i, kind === ORD.HOLD ? shortest(W, i) : reachOf(W, i, t));
           if (j >= 0) W.target[i] = Wo.id(W, j);
         }
         continue;
@@ -171,7 +202,7 @@ globalThis.PC = globalThis.PC || {};
           if (PC.Combat.fight(W, i, W.target[i], 2 * C.TILE_FP)) continue;
           W.target[i] = 0; O.goTo(W, i, W.oX[s], W.oY[s]);
         } else if (scan) {
-          const j = PC.Combat.acquire(W, i, reachOf(t));
+          const j = PC.Combat.acquire(W, i, reachOf(W, i, t));
           if (j >= 0) { W.target[i] = Wo.id(W, j); continue; }
         }
       }

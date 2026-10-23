@@ -60,7 +60,12 @@
         if (fl & F.UNDER_CONSTRUCTION) fr = Sp.frame(t.art, "build", 0, 0, Math.min(2, Math.floor(W.prog[i] * 3 / Math.max(1, t.buildTicks))));
         else fr = Sp.frame(t.art, W.qLen[i] ? "work" : "idle", ms + i * 53, 0);
       } else if (fl & F.RESOURCE) fr = Sp.frame(t.art, "idle", ms + i * 211, 0);
-      else {
+      else if (W.mode[i]) {
+        /* a gun digging in, dug in, or packing up */
+        const dep = t.siege ? t.siege.deploy : 1;
+        if (W.mode[i] === 1) fr = Sp.frame(t.art, "siege", 0, W.facing[i], W.cd[i] > PC.Combat.weapons(W, i)[0].cd - 4 ? 1 : 0);
+        else { const k = 1 - W.modeT[i] / dep, f3 = Math.min(2, Math.floor((W.mode[i] === 2 ? k : 1 - k) * 3)); fr = Sp.frame(t.art, "deploy", 0, W.facing[i], f3); }
+      } else {
         const kind = PC.Orders.headKind(W, i);
         const anim = (fl & F.MOVING) ? "walk" : (W.cd[i] > PC.Data.types[W.type[i]].weapons.reduce((m, w) => Math.max(m, w.cd), 0) - 3 && W.target[i]) ? "attack" : kind === C.ORD.CONSTRUCT || (kind === C.ORD.GATHER && W.prog[i] > 0) ? "work" : "idle";
         fr = Sp.frame(t.art, anim, ms + i * 37, W.facing[i]);
