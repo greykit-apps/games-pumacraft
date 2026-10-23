@@ -84,7 +84,10 @@ button.pc-danger:hover, button.pc-danger:focus-visible { background: var(--dange
 .pc-cost .o { background: var(--pc-ore); } .pc-cost .v { background: var(--pc-vapour); } .pc-cost .s { background: var(--accent); border-radius: 50%; transform: none; }
 .pc-need { display: block; margin-top: 2px; color: var(--danger); }
 
-/* ---- Settings ---- */
+/* ---- Settings, and the game's own sheets ---- */
+.pc-col { display: flex; flex-direction: column; gap: 6px; margin: 0 0 10px; align-items: stretch; }
+.pc-col button { text-align: left; }
+.pc-seed { width: 90px; margin-left: 6px; font: 600 15px/1.2 var(--ui); background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 5px 8px; }
 .pc-set { margin: 0 0 20px; }
 .pc-set h3 { margin: 0 0 10px; font: 700 13px/1 var(--ui); letter-spacing: .18em; text-transform: uppercase; color: var(--steel); }
 .pc-row { display: flex; align-items: center; gap: 12px; margin: 0 0 8px; flex-wrap: wrap; }

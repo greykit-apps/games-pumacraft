@@ -73,16 +73,22 @@
     </div>`;
     const box = $(".pc-play", host);
     V.mount(box);
-    const W = PC.Sim.create(opts.map, opts.players, opts.seed, { bases: true });
-    if (opts.setup) opts.setup(W);
-    PC.Sim.rebuild(W);
-    P.W = W; P.box = box; P.onEnd = onEnd; P.ended = false;
+    let W;
+    if (opts.save) W = PC.Serial.load(opts.save);
+    else {
+      W = PC.Sim.create(opts.map, opts.players, opts.seed, { bases: true });
+      if (opts.setup) opts.setup(W);
+      PC.Sim.rebuild(W);
+    }
+    P.W = W; P.box = box; P.onEnd = onEnd; P.ended = false; P.title = opts.title || (opts.save && opts.save.extra && opts.save.extra.title) || "Skirmish";
     P.me = Sp.me = 0;
     P.sel = []; P.groups = Array.from({ length: 10 }, () => []); P.mode = null; P.menu = "main"; P.msg = { text: "", until: 0 };
     Sp.selected = new Set();
-    const s = PC.Map.registry[opts.map].starts[P.me];
+    const s = PC.Map.registry[W.map.id].starts[P.me];
     V.W_ = W;   /* so the camera knows the map's edges before the loop starts */
-    V.centreOn(s.x * C.TILE, s.y * C.TILE + 40);
+    if (opts.save && opts.save.extra && opts.save.extra.cam) { V.camX = opts.save.extra.cam[0]; V.camY = opts.save.extra.cam[1]; V.clamp(); }
+    else V.centreOn(s.x * C.TILE, s.y * C.TILE + 40);
+    V.paused = false;
     V.speed = P.speedOf(PC.Store.get(PC.Store.K.speed, "fast"));
     PC.SFX.view = { get camX() { return V.camX; }, get camY() { return V.camY; }, w: V.view.w, h: V.view.h };
     wire(box);
@@ -90,7 +96,13 @@
     V.over = drawOver;
     V.run(W, {
       onFrame(dt, ms) { scroll(dt); if (ms - hudAt > 120) { hudAt = ms; hud(); } if (ms - miniAt > 200) { miniAt = ms; mini(); } },
-      onStep(W2) { PC.SFX.events(W2, P.me); for (const e of W2.ev) if (e[0] === "error" && e[1] === P.me) say(ERR[e[2]] || "Cannot do that."); if (W2.hdr[0] % 24 === 0) judge(); },
+      onStep(W2) {
+        PC.SFX.events(W2, P.me);
+        for (const e of W2.ev) if (e[0] === "error" && e[1] === P.me) say(ERR[e[2]] || "Cannot do that.");
+        if (W2.hdr[0] % 24 === 0) judge();
+        /* an autosave every five game minutes */
+        if (W2.hdr[0] % (C.TICK * 300) === 0 && PC.Saves.canSlot) PC.Saves.toSlot(PC.Saves.AUTO, W2, extra());
+      },
     });
     say("Right-click to give orders. Drag to select. ? for help.", 5000);
   };
@@ -403,11 +415,24 @@
     alertSheet(result === "victory" ? `Every enemy building is down, in ${Math.floor(sec / 60)} minutes ${sec % 60} seconds.` : "Your last building has fallen.", result === "victory" ? "Victory" : "Defeat")
       .then(() => { P.stop(); if (P.onEnd) P.onEnd(result); });
   }
+  const extra = () => ({ title: P.title, cam: [V.camX, V.camY] });
   P.menuSheet = () => {
+    if (document.querySelector(".gk-sheet")) return;
     V.paused = true;
-    confirmSheet("The game is paused. Leave it and go back to the title? It is not saved.", "Leave the game", "Paused").then(yes => {
-      if (yes) { P.stop(); if (P.onEnd) P.onEnd("quit"); } else V.paused = false;
-    });
+    const SV = PC.Saves;
+    const slots = () => SV.SLOTS.map(n => { const i = SV.info(n); return `<button data-save="${n}">Save in slot ${n}<span class="pc-note"> ${i ? esc(i.label) : "empty"}</span></button>`; }).join("");
+    const body = () => `<p>The game is paused.</p>` + (SV.canSlot ? `<div class="pc-col">${slots()}</div>` : `<p class="pc-note">This browser cannot pack saves small enough to keep here; save to a file instead.</p>`) +
+      `<div class="pc-row"><button data-file>Save to a file</button></div><div class="pc-row"><button data-primary data-resume>Resume</button><button class="pc-danger" data-leave>Leave the game</button></div>`;
+    PC.Sheet("Paused", body(), async (b, sh) => {
+      if (b.hasAttribute("data-resume")) sh.close();
+      else if (b.dataset.save) { const ok = await SV.toSlot(+b.dataset.save, P.W, extra()); sh.refresh(body()); say(ok ? `Saved in slot ${b.dataset.save}.` : "This browser's storage is full: save to a file instead."); }
+      else if (b.hasAttribute("data-file")) SV.toFile(P.W, extra());
+      else if (b.hasAttribute("data-leave")) {
+        sh.close();
+        confirmSheet("Leave this game? Anything since your last save is lost.", "Leave the game").then(yes => { if (yes) { P.stop(); if (P.onEnd) P.onEnd("quit"); } else V.paused = false; });
+        return;
+      }
+    }, () => { if (!P.ended && V.running) V.paused = false; });
   };
 
   /* ---- input ---- */
