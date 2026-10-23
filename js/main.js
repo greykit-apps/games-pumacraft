@@ -86,7 +86,7 @@
   let toggles = null;
   const refreshToggles = () => { if (toggles) toggles.refresh(); };
   intro.finish({
-    prefix: "pumacraft_",
+    prefix: S.PREFIX,   /* the boot counts this game's saved keys */
     hold: q.get("hold") || "auto",
     name: "lines",
     toggles: { sound: { get: () => !A.muted, set: on => A.setMuted(!on) }, music: { get: () => A.musicOn, set: A.setMusic } },
