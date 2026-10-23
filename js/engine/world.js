@@ -66,6 +66,8 @@ globalThis.PC = globalThis.PC || {};
     reg("stim", new Uint16Array(N));         /* ticks of an adrenal shot left */
     reg("mode", new Uint8Array(N));          /* 0 as it is; 1 dug in (siege); 2 digging in; 3 packing up */
     reg("modeT", new Uint16Array(N));        /* ticks left of digging in or packing up */
+    reg("matrix", new Int32Array(N));        /* a defensive matrix's hit points left, quarter-points */
+    reg("matrixT", new Uint16Array(N));      /* and its ticks left */
 
     /* players */
     reg("ai", new Int32Array(C.MAX_PLAYERS * 32));   /* each computer player's memory (PC.AI) */
@@ -80,8 +82,8 @@ globalThis.PC = globalThis.PC || {};
     reg("explored", new Uint8Array(map.w * map.h));      /* a bit per player: has seen this tile */
     /* who sees each tile now: counts per player, rebuilt every tick from the
        units, so derived and not saved (PC.Vision) */
-    W.vis = [];
-    for (let p = 0; p < C.MAX_PLAYERS; p++) W.vis.push(p < players.length ? new Uint16Array(map.w * map.h) : null);
+    W.vis = []; W.det = [];
+    for (let p = 0; p < C.MAX_PLAYERS; p++) { W.vis.push(p < players.length ? new Uint16Array(map.w * map.h) : null); W.det.push(p < players.length ? new Uint16Array(map.w * map.h) : null); }
     W.ev = [];   /* this tick's events for the screen and the speakers; not state */
     return W;
   };
@@ -113,7 +115,7 @@ globalThis.PC = globalThis.PC || {};
       W.oHead[i] = 0; W.oLen[i] = 0;
       W.pathLen[i] = 0; W.pathAt[i] = 0; W.pathWant[i] = 0; W.stuck[i] = 0; W.repaths[i] = 0;
       W.amount[i] = T.amount; W.carry[i] = 0; W.prog[i] = 0; W.qLen[i] = 0; W.rallyT[i] = 0; W.rallyX[i] = 0; W.rallyY[i] = 0;
-      W.home[i] = 0; W.wait[i] = 0; W.kills[i] = 0; W.stim[i] = 0; W.mode[i] = 0; W.modeT[i] = 0;
+      W.home[i] = 0; W.wait[i] = 0; W.kills[i] = 0; W.stim[i] = 0; W.mode[i] = 0; W.modeT[i] = 0; W.matrix[i] = 0; W.matrixT[i] = 0;
       W.energy[i] = T.energy ? Math.min(T.energy, T.energyStart) : 0;
       if (T.foot) {
         PC.World.occupy(W, i, true);

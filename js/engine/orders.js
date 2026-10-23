@@ -127,9 +127,31 @@ globalThis.PC = globalThis.PC || {};
   }
 
   /* ---- abilities a unit uses on itself, by number: 1 the adrenal shot ---- */
-  O.ABILITY = { stim: 1, siege: 2 };
+  O.ABILITY = { stim: 1, siege: 2, cloak: 3, matrix: 4 };
   function ability(W, c, units) {
     const T = PC.Data.types;
+    if (c.tgt === O.ABILITY.cloak) {
+      /* cloak (x 0) or uncloak (x 2), or toggle (x 1); cloaking costs 25 energy up front */
+      const up = PC.Data.upByKey.a_cloak;
+      if (!up || !W.upg[c.p * 64 + up.id]) return;
+      for (const i of units) {
+        if (!T[W.type[i]].abilities.includes("cloak")) continue;
+        const on = W.flags[i] & F.CLOAKED, want = c.x === 1 ? !on : c.x !== 2;
+        if (want && !on && W.energy[i] >= 25) { W.energy[i] -= 25; W.flags[i] |= F.CLOAKED; W.ev.push(["cloak", i, 1]); }
+        else if (!want && on) { W.flags[i] &= ~F.CLOAKED; W.ev.push(["cloak", i, 0]); }
+      }
+      return;
+    }
+    if (c.tgt === O.ABILITY.matrix) {
+      /* a defensive matrix on the unit named in x: 100 energy, 250 points of hits taken for it, ten seconds */
+      const j = Wo.live(W, c.x);
+      if (j < 0 || PC.Combat.hostile(W, units[0], j) || W.owner[j] >= C.MAX_PLAYERS) return;
+      const caster = units.find(i => T[W.type[i]].abilities.includes("matrix") && W.energy[i] >= 100);
+      if (caster === undefined) return;
+      W.energy[caster] -= 100; W.matrix[j] = 1000; W.matrixT[j] = 240;
+      W.ev.push(["matrix", caster, j]);
+      return;
+    }
     if (c.tgt === O.ABILITY.siege) {
       /* dig in, or pack up: each unit by the state it is in */
       const up = PC.Data.upByKey.a_siege, dig = c.x !== 2;   /* x 2 asks to pack up; anything else, to dig in (or toggle with x 1) */
@@ -172,7 +194,14 @@ globalThis.PC = globalThis.PC || {};
       const i = order[k];
       W.px[i] = W.x[i]; W.py[i] = W.y[i];
       const fl = W.flags[i];
-      if (!(fl & F.ALIVE) || (fl & (F.BUILDING | F.RESOURCE))) continue;   /* killed earlier this tick, or not a unit */
+      if (!(fl & F.ALIVE) || (fl & F.RESOURCE)) continue;   /* killed earlier this tick, or not a unit */
+      if (fl & F.BUILDING) {
+        /* a tower: fires on what comes in range, and never moves */
+        if ((fl & F.UNDER_CONSTRUCTION) || !T[W.type[i]].weapons.length) continue;
+        if (W.target[i] && !PC.Combat.fight(W, i, W.target[i], -1)) W.target[i] = 0;
+        else if (!W.target[i] && (tick + i) % 8 === 0) { const j = PC.Combat.acquire(W, i, reachOf(W, i, T[W.type[i]])); if (j >= 0) W.target[i] = Wo.id(W, j); }
+        continue;
+      }
       const t = T[W.type[i]], s = slot(W, i, 0), armed = t.weapons.length > 0 && !(fl & F.WORKER);
       const scan = armed && (tick + i) % 8 === 0;
       if (W.mode[i] >= 2) {

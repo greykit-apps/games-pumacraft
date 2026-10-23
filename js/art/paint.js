@@ -46,10 +46,27 @@ globalThis.PC = globalThis.PC || {};
   const bay = (x, y) => (BAYER[(y & 3) * 4 + (x & 3)] + 0.5) / 16;
   const q = (v, s = 1024) => Math.round(v * s) / s;   /* quantise, so tiny float differences cannot flip a pixel */
 
+  /* ---- sine and cosine, made here ----
+     Math.sin and Math.cos are not promised to give the same last bit in
+     every engine version, and one bit can flip a pixel at a part's edge:
+     measured 2026-10-23, Node 20 and Node 24 baked different Kestrels. These
+     use only + - * and Math.round, which are exact everywhere: the angle
+     brought into [-pi/2, pi/2], then the Taylor series to x^17, good to the
+     last bit that matters. */
+  const PI = 3.141592653589793, TAU = 6.283185307179586;
+  function sinR(x) {
+    x -= TAU * Math.round(x / TAU);
+    if (x > PI / 2) x = PI - x; else if (x < -PI / 2) x = -PI - x;
+    const x2 = x * x;
+    return x * (1 - x2 / 6 * (1 - x2 / 20 * (1 - x2 / 42 * (1 - x2 / 72 * (1 - x2 / 110 * (1 - x2 / 156 * (1 - x2 / 210 * (1 - x2 / 272))))))));
+  }
+  P.sin = sinR;
+  P.cos = x => sinR(x + PI / 2);
+
   /* ---- matrices: 3x3, row-major ---- */
-  const D2R = Math.PI / 180;
+  const D2R = PI / 180;
   function rotM(yaw, pitch, roll) {
-    const cy = Math.cos(yaw * D2R), sy = Math.sin(yaw * D2R), cp = Math.cos(pitch * D2R), sp = Math.sin(pitch * D2R), cr = Math.cos(roll * D2R), sr = Math.sin(roll * D2R);
+    const cy = P.cos(yaw * D2R), sy = P.sin(yaw * D2R), cp = P.cos(pitch * D2R), sp = P.sin(pitch * D2R), cr = P.cos(roll * D2R), sr = P.sin(roll * D2R);
     /* yaw about z, then pitch about y, then roll about x */
     return [cy * cp, cy * sp * sr - sy * cr, cy * sp * cr + sy * sr,
       sy * cp, sy * sp * sr + cy * cr, sy * sp * cr - cy * sr,

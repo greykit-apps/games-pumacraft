@@ -94,6 +94,8 @@ globalThis.PC = globalThis.PC || {};
     const T = PC.Data.types, tj = T[W.type[j]], arm = K.armour(W, j);
     for (let h = 0; h < w.hits && (W.flags[j] & F.ALIVE); h++) {
       let d = Math.floor(K.damage(W, i, w) * k / 100);
+      /* a defensive matrix takes the hit first, whole */
+      if (W.matrix[j] > 0) { const m = Math.min(W.matrix[j], d); W.matrix[j] -= m; d -= m; if (d <= 0) continue; }
       if (W.shield[j] > 0) {
         const s = Math.min(W.shield[j], d);
         W.shield[j] -= s; d -= s;
@@ -172,7 +174,11 @@ globalThis.PC = globalThis.PC || {};
       if (W.cd[i]) W.cd[i]--;
       if (W.stim[i]) W.stim[i]--;
       const t = T[W.type[i]];
-      if (t.energy && W.energy[i] < t.energy && (tick + i) % 30 === 0) W.energy[i]++;
+      if (W.flags[i] & F.CLOAKED) {
+        /* a cloak burns a point every 32 ticks, and drops when there is none to burn */
+        if ((tick + i) % 32 === 0) { if (W.energy[i] > 0) W.energy[i]--; else { W.flags[i] &= ~F.CLOAKED; W.ev.push(["cloak", i, 0]); } }
+      } else if (t.energy && W.energy[i] < t.energy && (tick + i) % 30 === 0) W.energy[i]++;
+      if (W.matrixT[i] && --W.matrixT[i] === 0) W.matrix[i] = 0;
     }
   };
 

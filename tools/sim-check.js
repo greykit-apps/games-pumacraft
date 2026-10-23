@@ -379,6 +379,42 @@ for (let seed = 1; seed <= SEEDS; seed++) {
   invariants(PC, W, "siege mode");
 }
 
+/* ---- cloak, detection, the matrix and the tower ---- */
+{
+  const PC = load(), C = PC.C, F = C.F, T = k => PC.Data.type(k), fp = v => Math.floor(v * C.TILE_FP);
+  const W = PC.Sim.create("proving", [{ faction: "a", team: 0 }, { faction: "a", team: 1 }], 41, { bases: true });
+  const id = i => PC.World.id(W, i), spawn = (k, p, x, y) => PC.World.spawn(W, T(k).id, p, fp(x), fp(y));
+  W.upg[PC.Data.upgrade("a_cloak").id] = 1;
+  const k = spawn("a_kestrel", 0, 30, 40), foe = spawn("a_trooper", 1, 31.5, 40);
+  W.energy[k] = 100;
+  PC.Orders.issue(W, { t: W.hdr[0], p: 0, k: C.CMD.ABILITY, u: [id(k)], tgt: PC.Orders.ABILITY.cloak, x: 0 });
+  PC.Sim.run(W, W.hdr[0] + 2);
+  if (!(W.flags[k] & F.CLOAKED) || W.energy[k] !== 75) fail(`a Kestrel told to cloak is ${W.flags[k] & F.CLOAKED ? "" : "not "}cloaked with ${W.energy[k]} energy`); else ok("a Kestrel cloaks for 25 energy");
+  if (PC.Vision.seesUnit(W, 1, k)) fail("a trooper with no detector sees a cloaked Kestrel"); else ok("a cloaked Kestrel is unseen without a detector");
+  const hp0 = W.hp[k];
+  PC.Sim.run(W, W.hdr[0] + 96);
+  if (W.hp[k] !== hp0) fail("a trooper shot a cloaked Kestrel it could not see"); else ok("a cloaked Kestrel is not shot at without a detector");
+  if (W.energy[k] >= 75) fail("a cloak burned no energy"); else ok(`four seconds of cloak burned ${75 - W.energy[k]} energy`);
+  const tower = spawn("a_tower", 1, 33, 41.5);
+  PC.Sim.run(W, W.hdr[0] + 2);
+  if (!PC.Vision.seesUnit(W, 1, k)) fail("a Missile Tower beside a cloaked Kestrel does not reveal it"); else ok("a Missile Tower reveals a cloaked Kestrel");
+  PC.Sim.run(W, W.hdr[0] + 72);
+  if (W.hp[k] >= hp0) fail("a Missile Tower did not fire on the Kestrel it revealed"); else ok(`a Missile Tower took ${(hp0 - W.hp[k]) / 4} from a revealed Kestrel`);
+  /* the matrix takes the hits first */
+  const ae = spawn("a_aegis", 0, 26, 44), tr = spawn("a_trooper", 0, 27, 46);
+  W.energy[ae] = 120;
+  PC.Orders.issue(W, { t: W.hdr[0], p: 0, k: C.CMD.ABILITY, u: [id(ae)], tgt: PC.Orders.ABILITY.matrix, x: id(tr) });
+  PC.Sim.run(W, W.hdr[0] + 2);
+  const thp = W.hp[tr];
+  const shooter = spawn("a_trooper", 1, 27, 50);
+  PC.Combat.hit(W, shooter, tr, T("a_trooper").weapons[0]);
+  if (W.hp[tr] !== thp || W.matrix[tr] >= 1000 || W.energy[ae] !== 20) fail(`a matrixed trooper hit lost ${(thp - W.hp[tr]) / 4} health, the matrix ${(1000 - W.matrix[tr]) / 4}, the Aegis has ${W.energy[ae]} energy`);
+  else ok("a defensive matrix takes the hit, for 100 energy");
+  PC.Sim.run(W, W.hdr[0] + 250);
+  if (W.matrix[tr]) fail("a defensive matrix outlasted its ten seconds"); else ok("a defensive matrix fades after ten seconds");
+  void tower;
+}
+
 /* ---- the computer against itself ---- */
 {
   const BOTS = [{ faction: "a", team: 0, ai: "normal" }, { faction: "a", team: 1, ai: "normal" }];

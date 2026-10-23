@@ -1,9 +1,9 @@
 {
-  "recipes": "d04c85afb945bf8eb6744beb0cd96989a004f4905418f559c3e1d23cb9edf2f9",
+  "recipes": "8e65e42e34b9b8b2fabc60dd35a990f424c57aa099d1f822b97ce8ff6fb27fdd",
   "sheets": {
-    "buildings_a": "f16654247881d279b2cdfa0d9cdc080026d0715fe2ce562853012b2d99f80aed",
-    "units_a": "c3464dfde0aeac1e04fd7dd2a6fd0816e452b8ee4c35141ad54900ecad40cb4d",
-    "neutral": "4676a43a7962434c9a90984ae8ef80afd320a655903794369b06ae9aeeb0fc37",
+    "buildings_a": "e173cebdc91c3ed1bf8adf76d70e773b04048e3bfe3adb881c6ae4aec0e84b81",
+    "units_a": "83b74fd3e751b85e2b5775104d1cbe5e24d653230beec34b69d1e55c67ba498f",
+    "neutral": "ef18587cf5ae642fc2d9415b7c272eff278c3070d01455e76397e7b5571ec95a",
     "terrain": "551ec73ea8e0a0578ebdf8d4dfb6188f17500583936eba3b7555e66bfb6f0404"
   }
 }
