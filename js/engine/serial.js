@@ -75,7 +75,7 @@ globalThis.PC = globalThis.PC || {};
 
   S.load = save => {
     if (!save || save.kind !== "save" || save.v !== 1) throw new Error("not a PumaCraft save");
-    const def = PC.Map.registry[save.map];
+    const def = PC.Map.registry[save.map] || PC.MapGen.ensure(save.map);
     if (!def) throw new Error("this save's map is missing: " + save.map);
     const W = PC.newWorld(def, save.players, save.seed);
     for (const [name, arr] of W.state) {

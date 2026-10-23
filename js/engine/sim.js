@@ -19,7 +19,7 @@ globalThis.PC = globalThis.PC || {};
    * player starts at the map's start for their slot with a town hall, four
    * workers and 50 ore, as the original began. */
   Sim.create = (mapId, players, seed, opts = {}) => {
-    const def = PC.Map.registry[mapId];
+    const def = PC.Map.registry[mapId] || PC.MapGen.ensure(mapId);
     if (!def) throw new Error("no such map: " + mapId);
     PC.Data.finish();
     const W = PC.newWorld(def, players, seed);

@@ -20,7 +20,9 @@ Plain scripts, no build step, nothing fetched at play time. Serve the repo root 
 | `js/art/sheets.js` | Loads the sheets and repaints the team magentas in each player's colour. |
 | `js/render/` | The ground in cached chunks, the units, the fog and minimap, the view and the frame loop. |
 | `js/ui/play.js` | The play screen: selection, the smart right-click, the command card, building, control groups, the HUD. |
-| `js/practice.js` | The practice range: your base against one that does not fight back yet. `?sandbox` opens it straight away. |
+| `js/ui/skirmish.js`, `js/ui/saves.js`, `js/ui/sheet.js` | Setting up a skirmish; the save slots, autosave and files; the game's own sheets. |
+| `js/practice.js` | The practice range on the Proving Ground; `?sandbox` opens it straight away. |
+| `js/engine/mapgen.js` | Maps from a seed, fair by turning; `tools/mapgen-preview.html` shows them. |
 | `js/audio/sfx.js` | Every sound effect, synthesised, panned by where it happens. |
 | `tools/png.js` | The PNG and ICO writers. |
 | `tools/lib.js` | Loads the engine headless, in `index.html`'s own script order. |
@@ -43,6 +45,7 @@ node tools/stamp-assets.js        # restamp script and stylesheet URLs after an 
 node tools/lint-determinism.js    # nothing in js/engine/ that can differ between machines
 node tools/gen-tables.js          # rewrite the trig tables (CI runs --check)
 node tools/sim-check.js --seeds 3 # played headless: twice alike, a save played on, the replay, units where they may stand
+node tools/mapgen-check.js        # the generator over many seeds (CI runs --seeds 40)
 node tools/data-check.js          # every unit has art, no hotkey twice
 node tools/bake-art.js --check    # the sheets are what the recipes paint
 ```

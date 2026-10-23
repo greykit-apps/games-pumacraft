@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PumaCraft: the map generator</title>
+<meta name="color-scheme" content="dark">
+<!-- The generator's maps, a pixel or four a tile: the three levels, ramps,
+     rock, water and trees, the veins (amber) and vents (green), and the
+     starts. Serve the repo over http and open tools/mapgen-preview.html.
+     Not deployed. ?seed=7&size=128&players=4 -->
+<style>
+  body { margin: 0; padding: 16px; background: #0b1017; color: #e9e4d8; font: 14px/1.4 system-ui, sans-serif; }
+  .ctl { display: flex; gap: 12px; align-items: center; margin: 0 0 12px; flex-wrap: wrap; }
+  input { width: 90px; } canvas { image-rendering: pixelated; display: block; } p { color: #9aa3ad; margin: 8px 0; }
+</style>
+</head>
+<body>
+<h1 style="font-size:18px;margin:0 0 8px">PumaCraft: the map generator</h1>
+<div class="ctl">
+  <label>Seed <input id="seed" type="number" value="1" min="1"></label>
+  <label>Kind <select id="kind"><option value="96,2">96 x 96 for two</option><option value="128,2">128 x 128 for two</option><option value="128,4">128 x 128 for four</option></select></label>
+  <button id="prev">Previous</button><button id="next">Next</button>
+</div>
+<canvas id="map"></canvas>
+<p id="info"></p>
+<script>
+/* the engine, in the page's order, as tools/lib.js loads it */
+const ENGINE = ["const", "tables", "fixed", "data", "map", "mapgen"];
+let left = ENGINE.length;
+for (const f of ENGINE) { const s = document.createElement("script"); s.src = "../js/engine/" + f + ".js"; s.async = false; s.onload = () => { if (!--left) ready(); }; document.head.appendChild(s); }
+function ready() {
+  const $ = id => document.getElementById(id), q = new URLSearchParams(location.search);
+  if (q.get("seed")) $("seed").value = q.get("seed");
+  if (q.get("size")) $("kind").value = q.get("size") + "," + (q.get("players") || 2);
+  const COL = { ".": "#5c4632", ",": "#7a5c40", ":": "#a4825a", "/": "#c8a478", "#": "#38342f", "~": "#1e4a74", "T": "#2e3c22" };
+  function draw() {
+    const [size, players] = $("kind").value.split(",").map(Number), seed = +$("seed").value || 1, t0 = performance.now();
+    const def = PC.MapGen.make({ seed, size, players }), ms = performance.now() - t0, S = size > 100 ? 4 : 5, c = $("map");
+    const map = PC.Map.build({ id: "p", rows: def.rows });
+    c.width = c.height = size * S;
+    const g = c.getContext("2d");
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+      const i = y * size + x;
+      g.fillStyle = map.cls[i] === PC.Map.CLS.CLIFF ? "#2a2622" : COL[def.rows[y][x]];
+      g.fillRect(x * S, y * S, S, S);
+    }
+    for (const r of def.resources) { g.fillStyle = r.t === "ore" ? "#ffb000" : "#4ade6a"; g.fillRect(r.x * S, r.y * S, (r.t === "ore" ? 2 : 4) * S, (r.t === "ore" ? 1 : 2) * S); }
+    def.starts.forEach((s, k) => { g.strokeStyle = "#54f2ff"; g.lineWidth = 2; g.strokeRect((s.x - 2) * S, (s.y - 1.5) * S, 4 * S, 3 * S); g.fillStyle = "#54f2ff"; g.font = "bold 12px system-ui"; g.fillText(k + 1, (s.x - 0.5) * S, (s.y + 0.5) * S); });
+    $("info").textContent = `${def.id}: ${def.resources.length} resources, made in ${def.gen.tries} tr${def.gen.tries > 1 ? "ies" : "y"}, ${ms.toFixed(0)} ms.`;
+  }
+  $("seed").onchange = $("kind").onchange = draw;
+  $("prev").onclick = () => { $("seed").value = Math.max(1, +$("seed").value - 1); draw(); };
+  $("next").onclick = () => { $("seed").value = +$("seed").value + 1; draw(); };
+  draw();
+}
+</script>
+</body>
+</html>

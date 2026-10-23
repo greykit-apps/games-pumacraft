@@ -41,7 +41,7 @@
   const help = [
     ["Playing", "<p><strong>PumaCraft is being built.</strong> It will be real-time strategy in the Grey Reach: gather ore and vapour, raise a base, " +
       "train an army and break your enemy's, as one of three powers that play nothing alike.</p>" +
-      "<p>Skirmish against the computer on drawn or generated maps, and a campaign of three acts, one for each power, will open here as they are finished. The practice range is open now: your base against one that does not fight back yet.</p>"],
+      "<p>Skirmish is open, on a drawn map or one made from a seed, against training targets: bases that mine but do not build or attack. The computer opponent and a campaign of three acts, one for each power, open here as they are finished.</p>"],
     ["In the game", "<p>Left-click or drag to select your units; right-click to move, attack, gather ore or vapour, or set a building's rally point. Shift queues an order behind the last. Every button on the command card has its letter.</p>" +
       '<table class="pc-keys"><tr><td><kbd>Ctrl</kbd>+<kbd>0</kbd>&ndash;<kbd>9</kbd></td><td>Make a control group; <kbd>0</kbd>&ndash;<kbd>9</kbd> calls it, twice to look at it</td></tr>' +
       '<tr><td><kbd>F1</kbd></td><td>The next idle engineer</td></tr><tr><td><kbd>Backspace</kbd></td><td>Your command post</td></tr>' +
@@ -71,20 +71,25 @@
   const titleCfg = {
     name: "PumaCraft", lines: ["Puma", "Craft"], sub: "War in the Grey Reach", primary: "skirmish",
     scene: el => { stopScene = PC.titleScene(el); },
-    items: [
-      { act: "skirmish", label: "Skirmish", key: "N", meta: "soon" },
-      { act: "campaign", label: "Campaign", key: "C", meta: "soon" },
-      { act: "practice", label: "Practice range", key: "P", meta: "no opponent yet" },
-      "gap",
+    get items() {
+      const last = PC.Saves.latest(), info = last !== null ? PC.Saves.info(last) : null;
+      return [
+        info && { act: "resume", label: "Continue", key: "R", meta: info.label },
+        { act: "skirmish", label: "Skirmish", key: "N", meta: "training targets" },
+        { act: "campaign", label: "Campaign", key: "C", meta: "soon" },
+        { act: "load", label: "Load a game", key: "L" },
+        "gap",
       { act: "settings", label: "Settings", key: "S" },
       { act: "help", label: "Help", key: "?" },
       { act: "about", label: "About", key: "A" },
-    ],
+      ];
+    },
     help, about, settings,
     onAct(act) {
-      if (act === "skirmish") soon("Skirmish");
+      if (act === "skirmish") PC.Skirmish.open(game => play(game));
       else if (act === "campaign") soon("The campaign");
-      else if (act === "practice") practice();
+      else if (act === "resume") { const n = PC.Saves.latest(); PC.Saves.fromSlot(n).then(sv => sv ? play({ save: sv }) : alertSheet("That save could not be read.", "Continue")); }
+      else if (act === "load") loadSheet();
     },
   };
 
@@ -102,10 +107,29 @@
     titleUI.reveal();
     A.startTheme();
   };
+  /** Plays a game (a skirmish's choices, or { save }), and comes back to the title after. */
+  const play = game => {
+    leaveTitle();
+    PC.Sheets.load().then(() => PC.Play.start(game, backToTitle))
+      .catch(e => { backToTitle(); alertSheet(String(e.message || e), "The game could not start"); });
+  };
   const practice = () => {
     leaveTitle();
     PC.Sheets.load().then(() => PC.Practice.start(backToTitle))
       .catch(e => { backToTitle(); alertSheet(String(e.message || e), "The game could not start"); });
+  };
+  const loadSheet = () => {
+    const SV = PC.Saves;
+    const body = `<div class="pc-col">` + [SV.AUTO, ...SV.SLOTS].map(n => { const i = SV.info(n); return i ? `<button data-slot="${n}">${n === SV.AUTO ? "Autosave" : "Slot " + n}<span class="pc-note"> ${i.label}</span></button>` : ""; }).join("") +
+      `</div><div class="pc-row"><button data-file>Load from a file</button></div>`;
+    PC.Sheet("Load a game", body, async (b, sh) => {
+      let sv = null;
+      if (b.dataset.slot !== undefined) sv = await SV.fromSlot(+b.dataset.slot);
+      else if (b.hasAttribute("data-file")) sv = await SV.fromFile();
+      else return;
+      if (!sv) { alertSheet("That save could not be read.", "Load a game"); return; }
+      sh.close(); play({ save: sv });
+    });
   };
 
   injectTitleCSS();
@@ -114,7 +138,7 @@
   else {
     const intro = startIntro({ audio: A.ctx, lines: [
       bootReloadLine(),
-      gkFact("build", "practice range"),
+      gkFact("save", PC.Saves.latest() !== null ? PC.Saves.info(PC.Saves.latest()).label : "none"),
       gkFlavour(["charting the Grey Reach", "warming the forge plates", "counting ore on the survey charts", "the dropship is fuelled",
         "the beacon is answering", "plotting a course past the charted stars", "the Reach is quiet tonight"],
         ["the cat has taken the command chair", "the cat is sitting on the map"], q.has("rare") ? 1 : 12),
