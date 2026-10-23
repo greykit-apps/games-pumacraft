@@ -5,7 +5,9 @@
  *   fighting, gathering, building)  ->  every building's construction and
  *   training  ->  cooldowns  ->  steering  ->  the clock
  *
- * The AI and triggers slot into this order as they land. Nothing outside
+ *   ->  the computer players, deciding for the next tick
+ *
+ * Triggers slot into this order when the campaign lands. Nothing outside
  * the engine changes the state except through PC.Orders.issue, which is how
  * the UI, the AI and a replay all speak. */
 "use strict";
@@ -70,6 +72,7 @@ globalThis.PC = globalThis.PC || {};
     PC.Combat.cool(W, scratchOrder, n);
     n = PC.World.alive(W, scratchOrder);
     PC.Nav.separate(W, scratchOrder, n);
+    PC.AI.step(W);
     W.hdr[0]++;
     if (W.hdr[0] % C.HASH_EVERY === 0) W.checks.push([W.hdr[0], PC.Serial.hash(W)]);
   };

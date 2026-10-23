@@ -65,6 +65,7 @@ globalThis.PC = globalThis.PC || {};
     reg("kills", new Uint16Array(N));
 
     /* players */
+    reg("ai", new Int32Array(C.MAX_PLAYERS * 32));   /* each computer player's memory (PC.AI) */
     reg("ore", new Int32Array(P)); reg("vapour", new Int32Array(P));
     reg("supplyUsed", new Int32Array(P)); reg("supplyCap", new Int32Array(P));
 
@@ -94,7 +95,7 @@ globalThis.PC = globalThis.PC || {};
     /** A new unit of type t for player p at fixed-point (x, y); its slot, or -1 if full.
      * A building is placed on its footprint, centred on (x, y); built marks
      * it finished (else it starts under construction and gives no supply). */
-    spawn(W, t, p, x, y, built = true) {
+    spawn(W, t, p, x, y, built = true, supplyHeld = false) {
       if (W.hdr[1] === 0) return -1;
       const i = W.free[--W.hdr[1]];
       const T = PC.Data.types[t];
@@ -113,7 +114,8 @@ globalThis.PC = globalThis.PC || {};
         PC.World.occupy(W, i, true);
         if (!built && T.kind === "building") { W.flags[i] |= F.UNDER_CONSTRUCTION; W.hp[i] = Math.max(4, Math.floor(T.hp / 10)); }
       }
-      if (p < C.MAX_PLAYERS) { W.supplyUsed[p] += T.supply; if (!(W.flags[i] & F.UNDER_CONSTRUCTION)) W.supplyCap[p] += T.supplyGive; }
+      /* a unit from a factory had its supply held when its training began (supplyHeld) */
+      if (p < C.MAX_PLAYERS) { if (!supplyHeld) W.supplyUsed[p] += T.supply; if (!(W.flags[i] & F.UNDER_CONSTRUCTION)) W.supplyCap[p] += T.supplyGive; }
       return i;
     },
 
@@ -123,6 +125,8 @@ globalThis.PC = globalThis.PC || {};
       const T = PC.Data.types[W.type[i]], p = W.owner[i];
       if (p < C.MAX_PLAYERS) { W.supplyUsed[p] -= T.supply; if (!(W.flags[i] & F.UNDER_CONSTRUCTION)) W.supplyCap[p] -= T.supplyGive; }
       if (T.foot) PC.World.occupy(W, i, false);
+      /* a factory lost mid-training gives back the supply it was holding */
+      if (W.qLen[i] && W.prog[i] > 0 && p < C.MAX_PLAYERS) W.supplyUsed[p] -= PC.Data.types[W.queue[i * 5]].supply;
       W.qLen[i] = 0;
       W.flags[i] = 0; W.oLen[i] = 0; W.pathLen[i] = 0; W.pathWant[i] = 0;
       W.free[W.hdr[1]++] = i;

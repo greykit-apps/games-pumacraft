@@ -41,7 +41,7 @@
   const help = [
     ["Playing", "<p><strong>PumaCraft is being built.</strong> It will be real-time strategy in the Grey Reach: gather ore and vapour, raise a base, " +
       "train an army and break your enemy's, as one of three powers that play nothing alike.</p>" +
-      "<p>Skirmish is open, on a drawn map or one made from a seed, against training targets: bases that mine but do not build or attack. The computer opponent and a campaign of three acts, one for each power, open here as they are finished.</p>"],
+      "<p>Skirmish is open: the Pumacity Defense Force against the computer, easy, normal or hard, on a drawn map or one made from a seed. The other two powers and a campaign of three acts, one for each, open here as they are finished.</p>"],
     ["In the game", "<p>Left-click or drag to select your units; right-click to move, attack, gather ore or vapour, or set a building's rally point. Shift queues an order behind the last. Every button on the command card has its letter.</p>" +
       '<table class="pc-keys"><tr><td><kbd>Ctrl</kbd>+<kbd>0</kbd>&ndash;<kbd>9</kbd></td><td>Make a control group; <kbd>0</kbd>&ndash;<kbd>9</kbd> calls it, twice to look at it</td></tr>' +
       '<tr><td><kbd>F1</kbd></td><td>The next idle engineer</td></tr><tr><td><kbd>Backspace</kbd></td><td>Your command post</td></tr>' +
@@ -75,7 +75,7 @@
       const last = PC.Saves.latest(), info = last !== null ? PC.Saves.info(last) : null;
       return [
         info && { act: "resume", label: "Continue", key: "R", meta: info.label },
-        { act: "skirmish", label: "Skirmish", key: "N", meta: "training targets" },
+        { act: "skirmish", label: "Skirmish", key: "N", meta: "against the computer" },
         { act: "campaign", label: "Campaign", key: "C", meta: "soon" },
         { act: "load", label: "Load a game", key: "L" },
         "gap",

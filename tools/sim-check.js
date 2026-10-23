@@ -291,6 +291,41 @@ for (let seed = 1; seed <= SEEDS; seed++) {
   invariants(PC, W, "the economy and the fight");
 }
 
+/* ---- the computer against itself ---- */
+{
+  const BOTS = [{ faction: "a", team: 0, ai: "normal" }, { faction: "a", team: 1, ai: "normal" }];
+  const make = (PCx, map) => { if (map.startsWith("gen:")) PCx.MapGen.ensure(map); return PCx.Sim.create(map, BOTS, 3, { bases: true }); };
+  const standing = (PCx, W) => [0, 1].map(p => { let b = 0; for (let i = 0; i < PCx.C.MAX_UNITS; i++) if ((W.flags[i] & PCx.C.F.ALIVE) && W.owner[i] === p && (W.flags[i] & PCx.C.F.BUILDING)) b++; return b; });
+  for (const map of ["proving", "gen:5:96:2"]) {
+    const P1 = load(), W1 = make(P1, map), mins = 8, T8 = 24 * 60 * mins;
+    P1.Sim.run(W1, T8 / 2);
+    const saved = JSON.stringify(P1.Serial.save(W1));
+    P1.Sim.run(W1, T8);
+    stepsRun += T8;
+    const b = standing(P1, W1), waves = [0, 1].map(p => W1.ai[p * 32 + 2]);
+    if (b.some(n => n < 6) || waves.some(n => n < 1)) fail(`${map}: two bots after ${mins} minutes have ${b.join(" and ")} buildings and sent ${waves.join(" and ")} waves`);
+    else ok(`${map}: two bots built ${b.join(" and ")} buildings and sent ${waves.join(" and ")} waves in ${mins} minutes`);
+    /* again, fresh */
+    const P2 = load(), W2 = make(P2, map);
+    P2.Sim.run(W2, T8); stepsRun += T8;
+    const bad2 = W1.checks.findIndex((c, i) => !W2.checks[i] || c[1] !== W2.checks[i][1]);
+    if (bad2 >= 0) fail(`${map}: two bots played twice differ from tick ${W1.checks[bad2][0]}`); else ok(`${map}: two bots play the same game twice`);
+    /* saved half way */
+    const P3 = load(), W3 = P3.Serial.load(JSON.parse(saved));
+    P3.Sim.run(W3, T8); stepsRun += T8 / 2;
+    if (P3.Serial.hash(W3) !== P1.Serial.hash(W1)) fail(`${map}: a bots' game saved half way went its own way: ${P3.Serial.diff(W1, W3)}`); else ok(`${map}: a bots' game saved half way plays on to the same end`);
+    /* the replay is the seed alone: the bots' commands are not in the log */
+    if (W1.log.length) fail(`${map}: the bots' commands went into the replay's log (${W1.log.length})`);
+  }
+  /* and one to the end */
+  const P4 = load(), W4 = make(P4, "proving");
+  let over = -1;
+  for (let m = 1; m <= 30 && over < 0; m++) { P4.Sim.run(W4, m * 24 * 60); stepsRun += 24 * 60; if (standing(P4, W4).some(n => n === 0)) over = m; }
+  if (over < 0) fail(`two bots on the Proving Ground were still both standing after 30 minutes (${standing(P4, W4).join(" and ")} buildings)`);
+  else ok(`two bots on the Proving Ground fought it out in ${over} minutes`);
+  for (let p = 0; p < 2; p++) if (W4.supplyUsed[p] > 200 || W4.supplyUsed[p] < 0) fail(`a bot's supply went to ${W4.supplyUsed[p]}`);
+}
+
 const ms = Date.now() - t0;
 /* A check that checks nothing must never read as a pass. */
 if (checks === 0 && failures === 0) { console.error("sim-check: nothing was checked -- refusing to pass"); process.exit(1); }

@@ -65,7 +65,7 @@ globalThis.PC = globalThis.PC || {};
     return null;
   };
 
-  const header = W => ({ v: 1, map: W.map.id, players: W.players.map(p => ({ faction: p.faction, team: p.team })), seed: W.seed });
+  const header = W => ({ v: 1, map: W.map.id, players: W.players.map(p => ({ faction: p.faction, team: p.team, ai: p.ai || null, name: p.name || null })), seed: W.seed });
 
   S.save = W => {
     const arrays = {};
