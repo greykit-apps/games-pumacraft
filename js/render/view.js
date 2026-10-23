@@ -75,6 +75,7 @@
     g.fillStyle = "#05070f"; g.fillRect(0, 0, V.W, V.H);
     g.save(); g.beginPath(); g.rect(v.x, v.y, v.w, v.h); g.clip();
     PC.RenderTerrain.draw(g, V.camX, V.camY, v.w, v.h, v.x, v.y);
+    if (PC.RenderCreep) PC.RenderCreep.draw(g, W, PC.RenderSprites.me, V.camX, V.camY, v.w, v.h, v.x, v.y);
     if (V.under) V.under(g, alpha, ms);
     PC.RenderSprites.draw(g, W, V.camX, V.camY, v.w, v.h, v.x, v.y, alpha, ms);
     if (PC.RenderFog) PC.RenderFog.draw(g, W, PC.RenderSprites.me, V.camX, V.camY, v.w, v.h, v.x, v.y);

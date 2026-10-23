@@ -26,8 +26,13 @@
  * PC.Data.RESEARCH is an upgrade, paid when queued, taking its level's time
  * and no supply, one of each under way at once.
  *
+ * The Horde trains otherwise: a Den grows larvae, and each unit is an egg
+ * laid from one, holding its brood's supply until it hatches; the
+ * smallest come two to an egg. Its workers become the buildings they
+ * make, which grow by themselves on the Range (PC.Creep).
+ *
  * Errors go out as events (W.ev) for the screen to say: "ore", "vapour",
- * "supply", "place", "queue", "tech", "busy", "done". */
+ * "supply", "place", "queue", "tech", "busy", "done", "larva", "creep". */
 "use strict";
 globalThis.PC = globalThis.PC || {};
 (() => {
@@ -66,6 +71,8 @@ globalThis.PC = globalThis.PC || {};
     for (let y = ty; y < ty + fh; y++) for (let x = tx; x < tx + fw; x++) {
       const k = y * m.w + x;
       if (!W.buildable[k] || !(W.explored[k] & (1 << p))) return "place";
+      /* the Horde's Range: its buildings need it (but its Den and its vats), and no one else's will stand on it */
+      if (t.creepReq ? !W.creep[k] : !t.creepOk && W.creep[k]) return t.creepReq ? "creep" : "place";
     }
     /* a drop-off keeps three tiles from any resource, so workers have room to work */
     if (t.dropoff) for (let i = 0; i < C.MAX_UNITS; i++) {
@@ -220,6 +227,7 @@ globalThis.PC = globalThis.PC || {};
       if (bt.onVapour) W.amount[b] = vented;
       W.target[b] = Wo.id(W, i);
       W.ev.push(["place", b, i]);
+      if (t.morphs) { W.target[b] = 0; Wo.kill(W, i); return; }   /* the Horde's worker is the building now */
       /* the builder steps off the site to work at its edge */
       const [ex, ey] = E.exitPoint(W, b, W.x[i], W.y[i]);
       W.x[i] = W.px[i] = ex; W.y[i] = W.py[i] = ey;
@@ -286,6 +294,7 @@ globalThis.PC = globalThis.PC || {};
       }
       if (b < 0) return;
       if (!E.unlocked(W, p, ut)) { err(W, p, "tech", b); return; }
+      if (T()[W.type[b]].larvae) { lay(W, p, b, ut, buildings); return; }
       if (W.qLen[b] >= 5) { err(W, p, "queue", b); return; }
       if (!afford(W, p, ut.cost)) { err(W, p, W.ore[p] < ut.cost[0] ? "ore" : "vapour", b); return; }
       pay(W, p, ut.cost);
@@ -311,7 +320,10 @@ globalThis.PC = globalThis.PC || {};
           /* three quarters back, and the site is cleared */
           const bt = T()[W.type[b]];
           W.ore[p] += Math.floor(bt.cost[0] * 3 / 4); W.vapour[p] += Math.floor(bt.cost[1] * 3 / 4);
+          const x = W.x[b], y = W.y[b];
           E.destroyed(W, b); Wo.kill(W, b);
+          /* the Horde's: the worker that became it comes back out */
+          if (bt.selfBuild) { const f = PC.Data.factions[bt.faction], w = f.units.find(id => T()[id].worker); if (w) Wo.spawn(W, w, p, x, y); }
           continue;
         }
         const k = c.tgt >= 0 && c.tgt < W.qLen[b] ? c.tgt : W.qLen[b] - 1;
@@ -332,6 +344,25 @@ globalThis.PC = globalThis.PC || {};
       }
     }
   };
+
+  /** The Horde trains from larvae: the Den with one to spare lays an egg beside it, which holds its brood's supply until it hatches. */
+  function lay(W, p, b0, ut, buildings) {
+    const dens = buildings.filter(j => T()[W.type[j]].larvae && !(W.flags[j] & F.UNDER_CONSTRUCTION) && W.larva[j] > 0);
+    const b = dens.length ? dens.reduce((m, j) => W.larva[j] > W.larva[m] ? j : m, dens[0]) : -1;
+    if (b < 0) { err(W, p, "larva", b0); return; }
+    const need = ut.supply * (ut.pair ? 2 : 1);
+    if (need && W.supplyUsed[p] + need > Math.min(W.supplyCap[p], C.SUPPLY_MAX)) { err(W, p, "supply", b); return; }
+    if (!afford(W, p, ut.cost)) { err(W, p, W.ore[p] < ut.cost[0] ? "ore" : "vapour", b); return; }
+    const egg = PC.Data.factions[T()[W.type[b]].faction].egg;
+    const [ex, ey] = E.exitPoint(W, b, W.x[b], W.y[b] + 3 * C.TILE_FP);
+    const e = Wo.spawn(W, egg, p, ex, ey);
+    if (e < 0) return;
+    pay(W, p, ut.cost);
+    W.larva[b]--; W.supplyUsed[p] += need;
+    W.queue[e * 5] = ut.id; W.qLen[e] = 1; W.prog[e] = 0;
+    W.rallyX[e] = W.rallyX[b]; W.rallyY[e] = W.rallyY[b]; W.rallyT[e] = W.rallyT[b];
+    W.ev.push(["egg", e, b]);
+  }
 
   /** Why player p may not queue research up now (an error word), or null: at its last level, already under way somewhere, or a level that needs a building it lacks. */
   E.canResearch = (W, p, up) => {
@@ -359,26 +390,29 @@ globalThis.PC = globalThis.PC || {};
     }
   };
 
-  /** Every building's construction and training, for one tick. */
+  /** Every building's construction and training, and every egg's hatching, for one tick. */
   E.step = (W, order, count) => {
     const TT = T();
     for (let k = 0; k < count; k++) {
       const b = order[k], f = W.flags[b];
+      if ((f & F.ALIVE) && TT[W.type[b]].egg) { hatch(W, b, TT); continue; }
       if (!(f & F.BUILDING) || !(f & F.ALIVE) || W.mode[b] === 4) continue;   /* a building in the air trains nothing */
       const t = TT[W.type[b]], p = W.owner[b];
       if (f & F.UNDER_CONSTRUCTION) {
         const w = Wo.live(W, W.target[b]);
-        if (w < 0 || PC.Orders.headKind(W, w) !== ORD.CONSTRUCT || Wo.live(W, W.oT[PC.Orders.slot(W, w, 0)]) !== b) continue;   /* no one at it: it waits */
+        if (!t.selfBuild && (w < 0 || PC.Orders.headKind(W, w) !== ORD.CONSTRUCT || Wo.live(W, W.oT[PC.Orders.slot(W, w, 0)]) !== b)) continue;   /* no one at it: it waits (the Horde's grow by themselves) */
         const n = t.buildTicks || 1, prev = W.prog[b]++, grow = v => Math.floor(t.hp / 10 + (t.hp - Math.floor(t.hp / 10)) * v / n);
         W.hp[b] = Math.min(t.hp, W.hp[b] + grow(W.prog[b]) - grow(prev));
         if (W.prog[b] >= n) {
           W.flags[b] &= ~F.UNDER_CONSTRUCTION; W.prog[b] = 0; W.target[b] = 0;
           if (p < C.MAX_PLAYERS) W.supplyCap[p] += t.supplyGive;
           W.ev.push(["built", b]);
-          PC.Orders.done(W, w);
+          if (w >= 0) PC.Orders.done(W, w);
         }
         continue;
       }
+      /* a Den grows a larva every fourteen seconds, to three */
+      if (t.larvae && W.larva[b] < t.larvae && ++W.larvaT[b] >= 336) { W.larva[b]++; W.larvaT[b] = 0; }
       if (!W.qLen[b]) continue;
       if (W.queue[b * 5] >= PC.Data.RESEARCH) {
         /* research: no supply, its level's time, then the level is the player's */
@@ -414,6 +448,21 @@ globalThis.PC = globalThis.PC || {};
       }
     }
   };
+  /** An egg: its brood grows, and comes out where it lay, already holding its supply. */
+  function hatch(W, e, TT) {
+    if (!W.qLen[e]) return;
+    const bt = TT[W.queue[e * 5]];
+    if (++W.prog[e] < bt.buildTicks) return;
+    const p = W.owner[e], x = W.x[e], y = W.y[e], rx = W.rallyX[e], ry = W.rallyY[e];
+    W.qLen[e] = 0; Wo.kill(W, e);
+    for (let n = 0; n < (bt.pair ? 2 : 1); n++) {
+      const u = Wo.spawn(W, bt.id, p, x + (n ? 5 * C.ONE : 0), y, true, true);
+      if (u < 0) { W.supplyUsed[p] -= bt.supply; continue; }
+      W.facing[u] = 64;
+      W.ev.push(["trained", u, e]);
+      if (rx || ry) PC.Orders.give(W, u, ORD.MOVE, rx, ry, 0, false);
+    }
+  }
   function shift(W, b) { for (let m = 0; m < 4; m++) W.queue[b * 5 + m] = W.queue[b * 5 + m + 1]; W.qLen[b]--; }
-  C.SUPPLY_MAX = 200;
+  C.SUPPLY_MAX = 400;   /* in halves: 200 to the player */
 })();

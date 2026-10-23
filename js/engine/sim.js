@@ -35,6 +35,8 @@ globalThis.PC = globalThis.PC || {};
       const s = def.starts[p], f = PC.Data.factions[pl.faction], hall = PC.Data.types[f.buildings.find(id => PC.Data.types[id].dropoff)];
       const worker = PC.Data.types[f.units.find(id => PC.Data.types[id].worker)];
       const b = PC.World.spawn(W, hall.id, p, fp(s.x), fp(s.y));
+      if (hall.larvae) W.larva[b] = hall.larvae;   /* a Den starts full */
+      for (const key of f.start || []) { const [x, y] = PC.Econ.exitPoint(W, b); PC.World.spawn(W, PC.Data.type(key).id, p, x, y - 2 * C.TILE_FP); }
       for (let k = 0; k < 4; k++) {
         const [x, y] = PC.Econ.exitPoint(W, b);
         PC.World.spawn(W, worker.id, p, x + (k * 2 - 3) * 5 * C.ONE, y);
@@ -55,6 +57,7 @@ globalThis.PC = globalThis.PC || {};
     const n = PC.World.alive(W, scratchOrder);
     PC.Combat.grid(W, scratchOrder, n);
     PC.Vision.update(W, scratchOrder, n);
+    PC.Creep.update(W, scratchOrder, n);
   };
 
   Sim.tick = W => W.hdr[0];
@@ -67,6 +70,7 @@ globalThis.PC = globalThis.PC || {};
     let n = PC.World.alive(W, scratchOrder);
     PC.Combat.grid(W, scratchOrder, n);
     PC.Vision.update(W, scratchOrder, n);
+    PC.Creep.update(W, scratchOrder, n);
     PC.Orders.step(W, scratchOrder, n);
     PC.Econ.step(W, scratchOrder, n);
     PC.Combat.cool(W, scratchOrder, n);

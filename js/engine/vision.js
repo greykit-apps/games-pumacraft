@@ -52,6 +52,25 @@ globalThis.PC = globalThis.PC || {};
     }
   };
 
+  /* ---- the Range: the ground the Horde's Dens and mounds spread round them, a disc each, on open ground ---- */
+  PC.Creep = {
+    update(W, order, count) {
+      const map = W.map, w = map.w, h = map.h, T = PC.Data.types, cr = W.creep;
+      cr.fill(0);
+      for (let k = 0; k < count; k++) {
+        const i = order[k], t = T[W.type[i]];
+        if (!t.creep || (W.flags[i] & F.UNDER_CONSTRUCTION) || W.mode[i] === 4) continue;
+        const tx = Math.floor(W.x[i] / C.TILE_FP), ty = Math.floor(W.y[i] / C.TILE_FP), d = discs[Math.min(14, t.creep)];
+        for (let j = 0; j < d.length; j += 2) {
+          const x = tx + d[j], y = ty + d[j + 1];
+          if (x < 0 || y < 0 || x >= w || y >= h) continue;
+          const n = y * w + x, c = map.cls[n];
+          if (c === CLS.GROUND || c === CLS.RAMP) cr[n] = 1;
+        }
+      }
+    },
+  };
+
   /** Whether player p sees the tile under fixed-point (x, y) now. */
   V.sees = (W, p, x, y) => {
     const v = W.vis[p];

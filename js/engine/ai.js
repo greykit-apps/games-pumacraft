@@ -70,7 +70,7 @@ globalThis.PC = globalThis.PC || {};
       const t = TT[W.type[i]];
       if (f & F.BUILDING) { mine.buildings.push(i); if (t.dropoff && !(f & F.UNDER_CONSTRUCTION)) mine.halls.push(i); if (f & F.UNDER_CONSTRUCTION) mine.building++; continue; }
       if (f & F.WORKER) { mine.workers.push(i); if (!W.oLen[i]) mine.idle.push(i); continue; }
-      if (t.weapons.length || t.heal || t.detector) mine.army.push(i);
+      if (t.weapons.length || t.heal || (t.detector && !t.supplyGive)) mine.army.push(i);   /* an unarmed Alpha is the Horde's supply: it stays at home */
     }
     if (!mine.halls.length && !mine.buildings.length) return;
     const home = mine.halls[0] !== undefined ? mine.halls[0] : mine.buildings[0];
@@ -116,7 +116,16 @@ globalThis.PC = globalThis.PC || {};
     const used = W.supplyUsed[p], cap = W.supplyCap[p];
     const depot = TT.find(t => t && t.faction === pl.faction && t.supplyGive && !t.dropoff);
     const rising = mine.buildings.some(i => (W.flags[i] & F.UNDER_CONSTRUCTION) && TT[W.type[i]].supplyGive);
-    if (!m[b + K.PEND_TYPE] && depot && cap < C.SUPPLY_MAX && cap - used < 3 + Math.floor(used / 8) && !rising && afford(W, p, depot.cost)) {
+    /* (supply is counted in halves) */
+    if (depot && depot.kind === "unit") {
+      /* the Horde hatches its supply, and spends it faster: an Alpha in an egg counts as come, and a pending building does not hold it up */
+      let coming = 0;
+      for (let i = 0; i < C.MAX_UNITS; i++) if ((W.flags[i] & F.ALIVE) && W.owner[i] === p && TT[W.type[i]].egg && W.qLen[i] && W.queue[i * 5] === depot.id) coming += depot.supplyGive;
+      if (cap + coming < C.SUPPLY_MAX && cap + coming - used < 8 + Math.floor(used / 5) && afford(W, p, depot.cost)) {
+        const h = mine.halls.find(x => W.larva[x] > 0);
+        if (h !== undefined) { say(W, p, CMD.TRAIN, [id(h)], { tgt: depot.id }); reserve = depot.cost; }
+      }
+    } else if (!m[b + K.PEND_TYPE] && depot && cap < C.SUPPLY_MAX && cap - used < 6 + Math.floor(used / 8) && !rising && afford(W, p, depot.cost)) {
       if (place(W, p, depot, mine, home, false)) reserve = depot.cost;
     }
 
@@ -124,7 +133,7 @@ globalThis.PC = globalThis.PC || {};
     const step = m[b + K.STEP];
     if (!m[b + K.PEND_TYPE] && step < def.build.length) {
       const s = def.build[step];
-      if (used >= s.at) {
+      if (used >= s.at * 2) {
         if (s.expand) {
           const hall = TT[W.type[home]];
           if (afford(W, p, hall.cost)) { const r = expand(W, p, hall, mine); if (r === "none") m[b + K.STEP]++; else if (r) reserve = hall.cost; }
@@ -138,8 +147,9 @@ globalThis.PC = globalThis.PC || {};
           }
         }
       }
-    } else if (!m[b + K.PEND_TYPE] && mine.building === 0) {
-      /* the build is done: money left over goes into more factories, up to a limit */
+    }
+    if (!m[b + K.PEND_TYPE] && mine.building === 0 && (step >= def.build.length || W.ore[p] - reserve[0] > 700)) {
+      /* the build is done, or money is piling up: what is left over goes into more factories, up to a limit */
       for (const [key, limit] of def.more || []) {
         const t = PC.Data.type(key);
         const have = mine.buildings.filter(i => W.type[i] === t.id).length;
@@ -148,21 +158,30 @@ globalThis.PC = globalThis.PC || {};
     }
 
     /* ---- workers, from what is left over ---- */
-    if (workersAt() < wantWorkers) for (const h of mine.halls) if (W.qLen[h] < 2 && spare(TT[workerType].cost)) { say(W, p, CMD.TRAIN, [id(h)], { tgt: workerType }); reserve = [reserve[0] + TT[workerType].cost[0], reserve[1]]; }
+    /* a Den's larvae are shared: past a dozen workers, only every third goes to one */
+    const larvae = h => TT[W.type[h]].larvae ? W.larva[h] : 2 - W.qLen[h];
+    if (workersAt() < wantWorkers) for (const h of mine.halls) {
+      if (TT[W.type[h]].larvae && workersAt() >= 12 && m[b + K.TRAIN_ROT] % 3) continue;
+      if (larvae(h) > 0 && spare(TT[workerType].cost)) { say(W, p, CMD.TRAIN, [id(h)], { tgt: workerType }); reserve = [reserve[0] + TT[workerType].cost[0], reserve[1]]; m[b + K.TRAIN_ROT]++; }
+    }
 
     /* ---- production ---- */
     for (const f of mine.buildings) {
       if (W.flags[f] & F.UNDER_CONSTRUCTION) continue;
       const list = def.train[TT[W.type[f]].key];
-      if (!list || W.qLen[f] >= 2) continue;
-      const pick = PC.Data.type(list[(m[b + K.TRAIN_ROT] + f) % list.length]);
-      if (!PC.Econ.unlocked(W, p, pick) || !spare(pick.cost)) continue;
-      /* save for the build's next step when it is near */
-      const next = def.build[m[b + K.STEP]];
-      if (next && used >= next.at - 1 && next.build && W.ore[p] - reserve[0] - pick.cost[0] < PC.Data.type(next.build).cost[0]) continue;
-      say(W, p, CMD.TRAIN, [id(f)], { tgt: pick.id });
-      reserve = [reserve[0] + pick.cost[0], reserve[1] + pick.cost[1]];
-      m[b + K.TRAIN_ROT]++;
+      if (!list) continue;
+      /* a factory keeps two in its queue; a Den spends every larva it has */
+      for (let n = TT[W.type[f]].larvae ? W.larva[f] : 2 - W.qLen[f]; n > 0; n--) {
+        let pick = PC.Data.type(list[(m[b + K.TRAIN_ROT] + f) % list.length]);
+        if (!PC.Econ.unlocked(W, p, pick)) pick = PC.Data.type(list.find(k => PC.Econ.unlocked(W, p, PC.Data.type(k))) || list[0]);
+        if (!PC.Econ.unlocked(W, p, pick) || !spare(pick.cost)) break;
+        /* save for the build's next step when it is near */
+        const next = def.build[m[b + K.STEP]];
+        if (next && used >= next.at * 2 - 2 && next.build && W.ore[p] - reserve[0] - pick.cost[0] < PC.Data.type(next.build).cost[0]) break;
+        say(W, p, CMD.TRAIN, [id(f)], { tgt: pick.id });
+        reserve = [reserve[0] + pick.cost[0], reserve[1] + pick.cost[1]];
+        m[b + K.TRAIN_ROT]++;
+      }
     }
 
     /* ---- research, in the faction's order ---- */
@@ -226,7 +245,7 @@ globalThis.PC = globalThis.PC || {};
     }
     const [first, more] = (def.waves[pl.ai] || def.waves.normal);
     /* waves grow to a point; a bot whose income has dried up (no ore near its halls and little in hand) throws in everything it has */
-    let need = Math.min(70, first + more * m[b + K.WAVES]);
+    let need = Math.min(140, (first + more * m[b + K.WAVES]) * 2);
     if (veins === 0 && W.ore[p] < 100) need = 1;
     let armySupply = 0;
     for (const i of mine.army) armySupply += TT[W.type[i]].supply;

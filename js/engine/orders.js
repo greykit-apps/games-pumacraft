@@ -366,7 +366,9 @@ globalThis.PC = globalThis.PC || {};
   /** One tick's walk for unit i toward its goal; true when it has arrived. */
   O.walk = (W, i, t0) => {
     /* under an adrenal shot a unit moves half again as fast */
-    const t = W.stim[i] ? { speed: t0.speed + (t0.speed >> 1), r: t0.r } : t0;
+    let t = W.stim[i] ? { speed: t0.speed + (t0.speed >> 1), r: t0.r } : t0;
+    /* a researched turn of speed (the Horde's ravagers) */
+    if (t0.speedUp && W.upg[W.owner[i] * 64 + t0.speedUp.upgrade]) t = { speed: Math.floor(t.speed * (100 + t0.speedUp.pct) / 100), r: t0.r };
     const air = W.flags[i] & F.AIR, map = W.map;
     const gdx = W.goalX[i] - W.x[i], gdy = W.goalY[i] - W.y[i], gd = Fx.len(gdx, gdy);
     if (gd <= Math.max(t.speed, t.r >> 2)) {
