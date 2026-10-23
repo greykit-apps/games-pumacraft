@@ -23,7 +23,7 @@ Plain scripts, no build step, nothing fetched at play time. Serve the repo root 
 | `js/ui/skirmish.js`, `js/ui/saves.js`, `js/ui/sheet.js` | Setting up a skirmish; the save slots, autosave and files; the game's own sheets. |
 | `js/practice.js` | The practice range on the Proving Ground; `?sandbox` opens it straight away. |
 | `js/engine/mapgen.js` | Maps from a seed, fair by turning; `tools/mapgen-preview.html` shows them. |
-| `js/engine/ai.js`, `js/data/ai_a.js` | The computer opponent, inside the engine and as deterministic as the rest; how it plays each faction. |
+| `js/engine/ai.js`, `js/data/ai_a.js`, `js/data/ai_b.js` | The computer opponent, inside the engine and as deterministic as the rest; how it plays each faction. |
 | `js/audio/sfx.js` | Every sound effect, synthesised, panned by where it happens. |
 | `tools/png.js` | The PNG and ICO writers. |
 | `tools/lib.js` | Loads the engine headless, in `index.html`'s own script order. |

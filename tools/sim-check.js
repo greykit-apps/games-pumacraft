@@ -131,7 +131,7 @@ let stepsRun = 0;
  * 2026-10-22: an unsaved stuck counter passed the save test). */
 {
   const PC = load(), [W] = setup(PC, 1), saved = new Set(W.state.map(([n]) => n));
-  const derived = new Set(["have"]);   /* typed arrays on W that are rebuilt on load, by name: what each player has finished */
+  const derived = new Set(["have", "creep"]);   /* typed arrays on W that are rebuilt on load, by name: what each player has finished */
   const loose = Object.keys(W).filter(k => ArrayBuffer.isView(W[k]) && !saved.has(k) && !derived.has(k));
   if (loose.length) fail(`the world holds typed arrays that are not saved or hashed: ${loose.join(", ")}`);
   else ok(`every typed array in the world is saved and hashed (${saved.size})`);
@@ -217,7 +217,8 @@ for (let seed = 1; seed <= SEEDS; seed++) {
   const id = i => PC.World.id(W, i), fp = v => Math.floor(v * C.TILE_FP);
   const hall = mine(0, "a_command")[0], workers = mine(0, "a_engineer");
   if (!hall && hall !== 0 || workers.length !== 4) fail(`a base starts with a command post and four engineers, not ${workers.length}`);
-  if (W.supplyCap[0] !== 10 || W.supplyUsed[0] !== 4 || W.ore[0] !== 50) fail(`a base starts at 4/10 supply and 50 ore, not ${W.supplyUsed[0]}/${W.supplyCap[0]} and ${W.ore[0]}`);
+  /* supply is counted in halves */
+  if (W.supplyCap[0] !== 20 || W.supplyUsed[0] !== 8 || W.ore[0] !== 50) fail(`a base starts at 4/10 supply and 50 ore, not ${W.supplyUsed[0] / 2}/${W.supplyCap[0] / 2} and ${W.ore[0]}`);
   /* every worker to the ore */
   let vein = -1;
   for (let i = 0; i < C.MAX_UNITS; i++) if ((W.flags[i] & F.RESOURCE) && PC.Data.types[W.type[i]].key === "ore" && W.x[i] < fp(20) && W.y[i] < fp(20)) { vein = i; break; }
@@ -229,7 +230,7 @@ for (let seed = 1; seed <= SEEDS; seed++) {
   /* train a fifth */
   PC.Orders.issue(W, { t: W.hdr[0], p: 0, k: C.CMD.TRAIN, u: [id(hall)], tgt: T("a_engineer").id });
   PC.Sim.run(W, W.hdr[0] + T("a_engineer").buildTicks + 2);
-  if (mine(0, "a_engineer").length !== 5 || W.supplyUsed[0] !== 5) fail(`training an engineer left ${mine(0, "a_engineer").length} engineers at ${W.supplyUsed[0]} supply`);
+  if (mine(0, "a_engineer").length !== 5 || W.supplyUsed[0] !== 10) fail(`training an engineer left ${mine(0, "a_engineer").length} engineers at ${W.supplyUsed[0]} supply`);
   else ok("a command post trains an engineer in its build time");
   /* build a depot and a barracks, then troopers */
   W.ore[0] = 1000; W.vapour[0] = 500;
@@ -239,7 +240,7 @@ for (let seed = 1; seed <= SEEDS; seed++) {
   PC.Sim.run(W, W.hdr[0] + 24 * 60);
   const depot = mine(0, "a_depot")[0], rax = mine(0, "a_barracks")[0];
   if (depot === undefined || (W.flags[depot] & F.UNDER_CONSTRUCTION)) fail("an engineer sent to build a depot did not finish it in a minute");
-  else if (W.supplyCap[0] !== 18) fail(`a finished depot left supply at ${W.supplyCap[0]}, not 18`);
+  else if (W.supplyCap[0] !== 36) fail(`a finished depot left supply at ${W.supplyCap[0] / 2}, not 18`);
   else ok("an engineer builds a depot, and it gives its supply");
   if (rax === undefined || (W.flags[rax] & F.UNDER_CONSTRUCTION)) fail("an engineer sent to build a barracks did not finish it in a minute");
   else {
@@ -467,6 +468,76 @@ for (let seed = 1; seed <= SEEDS; seed++) {
   invariants(PC, W, "carrying, repair, lift-off and the scan");
 }
 
+/* ---- the Horde: larvae, eggs, pairs, the Range, morphing and regrowth ---- */
+{
+  const PC = load(), C = PC.C, F = C.F, T = k => PC.Data.type(k), fp = v => Math.floor(v * C.TILE_FP);
+  const W = PC.Sim.create("proving", [{ faction: "b", team: 0 }, { faction: "a", team: 1 }], 61, { bases: true });
+  const id = i => PC.World.id(W, i), run = n => PC.Sim.run(W, W.hdr[0] + n);
+  const mine = (p, key) => { const out = []; for (let i = 0; i < C.MAX_UNITS; i++) if ((W.flags[i] & F.ALIVE) && W.owner[i] === p && PC.Data.types[W.type[i]].key === key) out.push(i); return out; };
+  const den = mine(0, "b_den")[0];
+  if (den === undefined) fail("the Horde starts without a Den");
+  else {
+    if (mine(0, "b_scav").length !== 4 || mine(0, "b_alpha").length !== 1) fail(`the Horde starts with ${mine(0, "b_scav").length} scavengers and ${mine(0, "b_alpha").length} Alphas`); else ok("the Horde starts with a Den, four scavengers and an Alpha");
+    run(24 * 30);
+    if (W.larva[den] !== 3) fail(`a Den has ${W.larva[den]} larvae after half a minute, not its three`); else ok("a Den grows its three larvae");
+    if (!W.creep[PC.Map.tileAt(W.map, W.x[den], W.y[den])]) fail("a Den does not spread the Range under itself"); else ok("a Den spreads the Range");
+    W.ore[0] = 2000; W.vapour[0] = 1000;
+    /* four scavengers ordered from three larvae: three eggs, and the fourth refused */
+    const scavs0 = mine(0, "b_scav").length, used0 = W.supplyUsed[0];
+    for (let k = 0; k < 4; k++) PC.Orders.issue(W, { t: W.hdr[0], p: 0, k: C.CMD.TRAIN, u: [id(den)], tgt: T("b_scav").id });
+    run(2);
+    if (mine(0, "b_egg").length !== 3 || W.larva[den] !== 0 || W.supplyUsed[0] - used0 !== 6) fail(`four scavengers ordered from three larvae laid ${mine(0, "b_egg").length} eggs, left ${W.larva[den]} larvae, took ${W.supplyUsed[0] - used0} half-supply`);
+    else ok("a Den lays an egg a larva, holding its supply, and refuses one past its larvae");
+    run(T("b_scav").buildTicks + 4);
+    if (mine(0, "b_scav").length !== scavs0 + 3 || mine(0, "b_egg").length) fail(`three eggs hatched into ${mine(0, "b_scav").length - scavs0} scavengers`); else ok("three eggs hatch three scavengers");
+    /* the Range: a Blood Pool needs it, a PDF building may not stand on it */
+    const scav = mine(0, "b_scav")[0], pool = T("b_pool"), dtx = Math.floor(W.x[den] / C.TILE_FP), dty = Math.floor(W.y[den] / C.TILE_FP);
+    let on = null, off = null;
+    W.explored.fill(255);   /* (placing needs explored ground; the Range is what is under test) */
+    for (let r = 4; r < 30 && (!on || !off); r++) for (let ddy = -r; ddy <= r; ddy++) for (let ddx = -r; ddx <= r; ddx++) {
+      if (Math.max(Math.abs(ddx), Math.abs(ddy)) !== r) continue;
+      const x = PC.Map.centre(dtx + ddx) - C.TILE_FP / 2, y = PC.Map.centre(dty + ddy);   /* a 3-wide pool centres on a tile edge */
+      const why = PC.Econ.canPlace(W, 0, pool, x, y, scav);
+      if (!on && why === null) on = [x, y];
+      if (!off && why === "creep") off = [x, y];
+    }
+    if (!on || !off) fail(`no spot found for a Blood Pool ${on ? "off" : "on"} the Range`);
+    else {
+      ok("a Blood Pool may stand on the Range and not off it");
+      if (PC.Econ.canPlace(W, 1, T("a_depot"), on[0], on[1], -1) === null) fail("a Supply Depot may stand on the Horde's Range"); else ok("a PDF building may not stand on the Range");
+      /* the scavenger becomes the pool, which grows by itself */
+      const scavs = mine(0, "b_scav").length;
+      PC.Orders.issue(W, { t: W.hdr[0], p: 0, k: C.CMD.BUILD, u: [id(scav)], x: on[0], y: on[1], tgt: pool.id });
+      run(24 * 20);
+      const pools = mine(0, "b_pool");
+      if (pools.length !== 1 || mine(0, "b_scav").length !== scavs - 1) fail(`a scavenger sent to grow a pool: ${pools.length} pools, ${mine(0, "b_scav").length} of ${scavs} scavengers left`);
+      else {
+        ok("a scavenger becomes the Blood Pool it grows");
+        run(pool.buildTicks);
+        if (W.flags[pools[0]] & F.UNDER_CONSTRUCTION) fail("a Blood Pool did not finish growing with no one at it"); else ok("a Blood Pool grows by itself");
+        /* a pair of runners from one larva and one egg, holding a whole supply */
+        const used1 = W.supplyUsed[0];
+        PC.Orders.issue(W, { t: W.hdr[0], p: 0, k: C.CMD.TRAIN, u: [id(den)], tgt: T("b_runner").id });
+        run(2);
+        if (mine(0, "b_egg").length !== 1 || W.supplyUsed[0] - used1 !== 2) fail(`training runners laid ${mine(0, "b_egg").length} eggs and took ${W.supplyUsed[0] - used1} half-supply`);
+        else ok("training runners lays one egg and holds one supply");
+        run(T("b_runner").buildTicks + 4);
+        if (mine(0, "b_runner").length !== 2 || W.supplyUsed[0] - used1 !== 2) fail(`an egg of runners hatched ${mine(0, "b_runner").length} at ${W.supplyUsed[0] - used1} half-supply`);
+        else ok("an egg hatches two runners, and their supply is the egg's");
+      }
+    }
+    /* regrowth */
+    const sc = mine(0, "b_scav")[0];
+    W.hp[sc] = 40;
+    run(24 * 20);
+    if (W.hp[sc] <= 40) fail("a wounded scavenger did not heal"); else ok(`a wounded scavenger healed ${(W.hp[sc] - 40) / 4} in twenty seconds`);
+    const [tx5, ty5] = PC.Econ.exitPoint(W, mine(1, "a_command")[0]), tr = PC.World.spawn(W, T("a_trooper").id, 1, tx5, ty5);
+    W.hp[tr] = 40; run(24 * 20);
+    if (W.hp[tr] !== 40) fail("a PDF trooper healed by itself"); else ok("a PDF trooper does not heal by itself");
+    invariants(PC, W, "the Horde");
+  }
+}
+
 /* ---- the computer against itself ---- */
 {
   const BOTS = [{ faction: "a", team: 0, ai: "normal" }, { faction: "a", team: 1, ai: "normal" }];
@@ -476,11 +547,13 @@ for (let seed = 1; seed <= SEEDS; seed++) {
     const P1 = load(), W1 = make(P1, map), mins = 8, T8 = 24 * 60 * mins;
     P1.Sim.run(W1, T8 / 2);
     const saved = JSON.stringify(P1.Serial.save(W1));
-    P1.Sim.run(W1, T8);
+    /* each must have built up a base and attacked; one may have won already */
+    const b = standing(P1, W1);
+    for (let m = mins / 2 + 1; m <= mins; m++) { P1.Sim.run(W1, m * 24 * 60); standing(P1, W1).forEach((n, p) => { b[p] = Math.max(b[p], n); }); }
     stepsRun += T8;
-    const b = standing(P1, W1), waves = [0, 1].map(p => W1.ai[p * 32 + 2]);
-    if (b.some(n => n < 6) || waves.some(n => n < 1)) fail(`${map}: two bots after ${mins} minutes have ${b.join(" and ")} buildings and sent ${waves.join(" and ")} waves`);
-    else ok(`${map}: two bots built ${b.join(" and ")} buildings and sent ${waves.join(" and ")} waves in ${mins} minutes`);
+    const waves = [0, 1].map(p => W1.ai[p * 32 + 2]);
+    if (b.some(n => n < 6) || waves.some(n => n < 1)) fail(`${map}: two bots in ${mins} minutes built up to ${b.join(" and ")} buildings and sent ${waves.join(" and ")} waves`);
+    else ok(`${map}: two bots built up to ${b.join(" and ")} buildings and sent ${waves.join(" and ")} waves in ${mins} minutes`);
     /* again, fresh */
     const P2 = load(), W2 = make(P2, map);
     P2.Sim.run(W2, T8); stepsRun += T8;
@@ -499,7 +572,19 @@ for (let seed = 1; seed <= SEEDS; seed++) {
   for (let m = 1; m <= 30 && over < 0; m++) { P4.Sim.run(W4, m * 24 * 60); stepsRun += 24 * 60; if (standing(P4, W4).some(n => n === 0)) over = m; }
   if (over < 0) fail(`two bots on the Proving Ground were still both standing after 30 minutes (${standing(P4, W4).join(" and ")} buildings)`);
   else ok(`two bots on the Proving Ground fought it out in ${over} minutes`);
-  for (let p = 0; p < 2; p++) if (W4.supplyUsed[p] > 200 || W4.supplyUsed[p] < 0) fail(`a bot's supply went to ${W4.supplyUsed[p]}`);
+  for (let p = 0; p < 2; p++) if (W4.supplyUsed[p] > 400 || W4.supplyUsed[p] < 0) fail(`a bot's supply went to ${W4.supplyUsed[p]}`);
+  /* the PDF against the Horde: both build and fight, and it ends */
+  const P5 = load(), W5 = P5.Sim.create("proving", [{ faction: "a", team: 0, ai: "normal" }, { faction: "b", team: 1, ai: "normal" }], 3, { bases: true });
+  let over5 = -1, peak = [0, 0];
+  for (let m = 1; m <= 30 && over5 < 0; m++) {
+    P5.Sim.run(W5, m * 24 * 60); stepsRun += 24 * 60;
+    for (let p = 0; p < 2; p++) peak[p] = Math.max(peak[p], W5.supplyUsed[p]);
+    if (standing(P5, W5).some(n => n === 0)) over5 = m;
+  }
+  if (peak.some(n => n < 40)) fail(`the PDF and the Horde bots peaked at ${peak.map(n => n / 2).join(" and ")} supply`); else ok(`the PDF and the Horde bots peaked at ${peak.map(n => n / 2).join(" and ")} supply`);
+  if (over5 < 0) fail(`the PDF and the Horde were both still standing after 30 minutes (${standing(P5, W5).join(" and ")} buildings)`);
+  else ok(`the PDF and the Horde fought it out in ${over5} minutes, ${standing(P5, W5)[0] ? "the PDF" : "the Horde"} standing`);
+  if (VERBOSE) console.log("     Horde waves " + W5.ai[32 + 2] + ", PDF waves " + W5.ai[2]);
 }
 
 const ms = Date.now() - t0;

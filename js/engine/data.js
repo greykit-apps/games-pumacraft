@@ -15,6 +15,8 @@ globalThis.PC = globalThis.PC || {};
 (() => {
   const C = PC.C;
   const D = PC.Data = { types: [null], byKey: Object.create(null), factions: Object.create(null), order: [], upgrades: [], upByKey: Object.create(null) };
+  /** The faction ids, in the order their files registered them. */
+  D.factionIds = () => Object.keys(D.factions);
   /* research shares a building's queue with training: an entry at or above
      RESEARCH is upgrade (entry - RESEARCH) */
   D.RESEARCH = 4096;
@@ -39,7 +41,8 @@ globalThis.PC = globalThis.PC || {};
       id: D.types.length, key, kind, faction, name: d.name || key,
       hp: q(d.hp || 1), shield: q(d.shield || 0), armor: d.armor || 0, size: C.SIZE[d.size || "small"],
       speed: px(d.speed || 0), r: px(d.r || 8), sight: d.sight || 7,
-      air: !!d.air, worker: !!d.worker, supply: d.supply || 0, supplyGive: d.supplyGive || 0,
+      /* supply in halves: a pair of the Horde's smallest share one */
+      air: !!d.air, worker: !!d.worker, supply: Math.round((d.supply || 0) * 2), supplyGive: Math.round((d.supplyGive || 0) * 2),
       cost: d.cost || [0, 0], buildTicks: d.buildTicks || 0,
       foot: d.foot || null, art: d.art || key, hotkey: d.hotkey || null, raw: d,
       /* weapons: damage in quarter-points, range in fixed point from edge to edge, cooldown in ticks */
@@ -54,6 +57,8 @@ globalThis.PC = globalThis.PC || {};
       dropoff: !!d.dropoff, onVapour: !!d.onVapour, amount: d.amount || 0, gather: d.gather || 0,
       mine: d.mine || 0, carry: d.carry || 0,
       cargo: d.cargo || 0, bunker: d.bunker ? { slots: d.bunker.slots, range: px(d.bunker.range) } : null, lift: !!d.lift, liftSpeed: px(d.liftSpeed || 1),
+      larvae: d.larvae || 0, creep: d.creep || 0, creepReq: !!d.creepReq, creepOk: !!d.creepOk, selfBuild: !!d.selfBuild, morphs: !!d.morphs, regen: !!d.regen, pair: !!d.pair, egg: !!d.egg,
+      speedUp: d.speedUp || null,
       life: d.life || 0, slots: d.size === "large" ? 4 : d.size === "medium" ? 2 : 1,
     };
     if (t.foot) t.r = Math.floor(Math.min(t.foot[0], t.foot[1]) * C.TILE_FP / 2);
@@ -67,6 +72,8 @@ globalThis.PC = globalThis.PC || {};
     D.factions[id] = { id, name: def.name, short: def.short || def.name, units: [], buildings: [], upgrades: [] };
     for (const [k, u] of Object.entries(def.units || {})) D.factions[id].units.push(addType(k, "unit", id, u).id);
     for (const [k, b] of Object.entries(def.buildings || {})) D.factions[id].buildings.push(addType(k, "building", id, b).id);
+    if (def.egg) D.factions[id].eggKey = def.egg;
+    D.factions[id].start = def.start || [];
     /* effects: things a faction makes that are not units (a scanner sweep's eye) */
     for (const [k, e] of Object.entries(def.effects || {})) addType(k, "effect", id, e);
     /* upgrades: levels, a cost and a time for each, where they are researched, and what each level needs */
@@ -87,7 +94,9 @@ globalThis.PC = globalThis.PC || {};
       t.researches = t.researches.map(x => typeof x === "number" ? x : D.upgrade(x).id);
       for (const w of t.weapons.concat(t.siege ? t.siege.weapons : [])) if (typeof w.upgrade === "string") w.upgrade = D.upgrade(w.upgrade).id;
       if (typeof t.armorUpgrade === "string") t.armorUpgrade = D.upgrade(t.armorUpgrade).id;
+      if (t.speedUp && typeof t.speedUp.upgrade === "string") t.speedUp = { upgrade: D.upgrade(t.speedUp.upgrade).id, pct: t.speedUp.pct };
     }
+    for (const f of Object.values(D.factions)) if (f.eggKey) f.egg = D.type(f.eggKey).id;
     for (const u of D.upgrades) {
       if (typeof u.at === "string") u.at = D.type(u.at).id;
       /* req: per level, a list of building keys (or one list for every level) */

@@ -111,7 +111,7 @@
       onStep(W2) {
         PC.SFX.events(W2, P.me);
         for (const e of W2.ev) {
-          if (e[0] === "error" && e[1] === P.me) say(ERR[e[2]] || "Cannot do that.");
+          if (e[0] === "error" && e[1] === P.me) say(e[2] === "supply" ? ERR.supply + (W2.players[P.me].faction === "b" ? " Train an Alpha." : " Build a Supply Depot.") : ERR[e[2]] || "Cannot do that.");
           else if (e[0] === "researched" && W2.owner[e[1]] === P.me) { const up = PC.Data.upgrades[e[2]]; say(`${up.name}${up.levels > 1 ? " level " + W2.upg[P.me * 64 + up.id] : ""}: research complete.`, 3500); }
         }
         if (W2.hdr[0] % 24 === 0) judge();
@@ -124,7 +124,8 @@
   P.speedOf = k => ({ slow: 0.5, normal: 0.67, fast: 0.85, fastest: 1 })[k] || 0.85;
   P.stop = () => { V.stop(); V.over = null; const host = $("#game-host"); host.hidden = true; host.innerHTML = ""; unwire(); };
 
-  const ERR = { full: "There is no room inside.", ore: "Not enough ore.", vapour: "Not enough vapour.", supply: "More supply is needed: build a Supply Depot.", place: "Cannot build there.",
+  const ERR = { full: "There is no room inside.", ore: "Not enough ore.", vapour: "Not enough vapour.", supply: "More supply is needed.", place: "Cannot build there.",
+    larva: "No larva is free: a Den grows one every few seconds.", creep: "That must be grown on the Range.",
     queue: "The queue is full.", tech: "That needs another building first.", busy: "That is already being researched.", done: "That is already fully researched." };
   function say(text, ms = 2500) { P.msg = { text, until: performance.now() + ms }; const el = $(".pc-msg", P.box); if (el) { el.textContent = text; el.classList.add("on"); } }
 
@@ -324,7 +325,7 @@
     const el = $(".pc-tip", P.box), W = P.W;
     let html = `<b>${esc(b.tip)}</b>${b.key ? ` <kbd>${esc(b.label || b.key)}</kbd>` : ""}`;
     if (b.note) html += `<span class="pc-tipnote">${esc(b.note)}</span>`;
-    if (b.cost) html += `<span class="pc-cost"><i class="o"></i>${b.cost[0]}${b.cost[1] ? `<i class="v"></i>${b.cost[1]}` : ""}${b.supply ? `<i class="s"></i>${b.supply}` : ""}</span>`;
+    if (b.cost) html += `<span class="pc-cost"><i class="o"></i>${b.cost[0]}${b.cost[1] ? `<i class="v"></i>${b.cost[1]}` : ""}${b.supply ? `<i class="s"></i>${b.supply / 2}` : ""}</span>`;
     if (b.req && b.req.length && !b.req.every(r => PC.Econ.has(W, P.me, r))) html += `<span class="pc-need">Needs ${b.req.map(r => esc(T()[r].name)).join(", ")}</span>`;
     el.innerHTML = html; el.hidden = false;
   }
@@ -334,7 +335,7 @@
   function panel() {
     const el = $(".pc-sel", P.box), W = P.W, s = selSlots();
     if (!el) return;
-    const key = s.map(i => i + ":" + W.hp[i] + ":" + W.qLen[i] + ":" + (W.prog[i] >> 3) + ":" + W.carry[i]).join(",");
+    const key = s.map(i => i + ":" + W.hp[i] + ":" + W.qLen[i] + ":" + (W.prog[i] >> 3) + ":" + W.carry[i] + ":" + W.larva[i]).join(",");
     if (key === panelKey) return;
     panelKey = key;
     if (!s.length) { el.innerHTML = ""; return; }
@@ -356,9 +357,11 @@
         if (fl & F.UNDER_CONSTRUCTION) html += `<p class="pc-prog"><span style="width:${W.prog[i] / Math.max(1, t.buildTicks) * 100}%"></span></p><p>Under construction</p>`;
         if (W.carry[i]) html += `<p class="pc-stat">Carrying ${W.amount[i]} ${W.carry[i] === 1 ? "ore" : "vapour"}</p>`;
         if (t.onVapour && !(fl & F.UNDER_CONSTRUCTION)) html += `<p class="pc-stat">${W.amount[i]} vapour left</p>`;
+        if (t.larvae && !(fl & F.UNDER_CONSTRUCTION)) html += `<p class="pc-stat">Larvae ${W.larva[i]} of ${t.larvae}</p>`;
+        if (t.egg && W.qLen[i]) html += `<p class="pc-stat">Hatching: ${esc(T()[W.queue[i * 5]].name)}${T()[W.queue[i * 5]].pair ? " (two)" : ""}</p>`;
       }
       html += `</div>`;
-      if ((fl & F.BUILDING) && W.qLen[i]) html += `<div class="pc-queue"></div>`;
+      if (((fl & F.BUILDING) || t.egg) && W.qLen[i]) html += `<div class="pc-queue"></div>`;
       el.innerHTML = html;
       $(".pc-port", el).appendChild(icon(W.type[i], W.owner[i], 44));
       const q = $(".pc-queue", el);
@@ -392,7 +395,9 @@
     $(".pc-ore b", top).textContent = W.ore[me];
     $(".pc-vap b", top).textContent = W.vapour[me];
     const sup = $(".pc-sup", top);
-    $("b", sup).textContent = `${W.supplyUsed[me]}/${Math.min(C.SUPPLY_MAX, W.supplyCap[me])}`;
+    /* supply is counted in halves */
+    const half = v => (v / 2).toString();
+    $("b", sup).textContent = `${half(W.supplyUsed[me])}/${half(Math.min(C.SUPPLY_MAX, W.supplyCap[me]))}`;
     sup.classList.toggle("full", W.supplyUsed[me] >= W.supplyCap[me]);
     const sec = Math.floor(W.hdr[0] / C.TICK);
     $(".pc-clock", top).textContent = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;

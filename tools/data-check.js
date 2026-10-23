@@ -34,7 +34,7 @@ for (const t of PC.Data.types.slice(1)) {
     if (!ART.PC.Paint.trim(f0, r.box[0], r.box[1])) fail(`${t.key}: its ${anim} paints nothing`);
   }
   if (t.cost.some(c => c < 0)) fail(`${t.key}: a negative cost`);
-  if (t.kind === "unit" && t.speed <= 0) fail(`${t.key}: a unit that cannot move`);
+  if (t.kind === "unit" && t.speed <= 0 && !t.egg) fail(`${t.key}: a unit that cannot move (only an egg stands still)`);
   if (t.kind === "unit" && !(r && r.anims.walk)) fail(`${t.key}: no walk to move with`);
   if (t.kind === "building" && !(r && r.anims.build && r.anims.build.n === 3)) fail(`${t.key}: no three-stage build to rise with`);
 }

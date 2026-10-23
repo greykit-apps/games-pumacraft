@@ -191,8 +191,9 @@ globalThis.PC = globalThis.PC || {};
           const si = mi && !mj ? 1 : !mi && mj ? 3 : 2;
           let pi = Math.floor(over * si / 4), pj = over - pi;
           /* a unit dug in does not budge: the other takes the whole push (two dug in, neither) */
-          if (W.mode[i]) { pj += pi; pi = 0; }
-          if (W.mode[j]) { pi += pj; pj = 0; if (W.mode[i]) pi = 0; }
+          const fixedI = W.mode[i] || !T[W.type[i]].speed, fixedJ = W.mode[j] || !T[W.type[j]].speed;   /* dug in, or never moves (an egg) */
+          if (fixedI) { pj += pi; pi = 0; }
+          if (fixedJ) { pi += pj; pj = 0; if (fixedI) pi = 0; }
           nudge(W, map, i, -Math.floor(ux * pi / d), -Math.floor(uy * pi / d));
           nudge(W, map, j, Math.floor(ux * pj / d), Math.floor(uy * pj / d));
         }

@@ -26,6 +26,11 @@ globalThis.PC = globalThis.PC || {};
     bone: ["#fffaf0", "#eae0cc", "#cabca0", "#a49478", "#786a54", "#4c4234"],
     violet: ["#f0d8ff", "#c8a0f0", "#9c70d8", "#7048b0", "#4a2c80", "#2a1850"],
     gold: ["#fff4c0", "#ffd870", "#e0a838", "#b07820", "#7a4c14", "#48280a"],
+    /* the Horde: its flesh, its Range, its blood */
+    flesh: ["#c890a8", "#a87090", "#86506e", "#643a54", "#48283e", "#30182a"],
+    range: ["#7a4a66", "#623a54", "#4c2c44", "#3a2034", "#2a1626"],
+    blood: ["#ff9080", "#e84a3a", "#b42a22", "#7a1814", "#480c0c"],
+    eye: ["#fff0a0", "#ffd040", "#ff8020", "#c04010"],
     /* the resources: ore is amber crystal, vapour a pale steam */
     ore: ["#fff4d0", "#ffd27a", "#f0a040", "#c86a20", "#7a3c14", "#401c0c"],
     steam: ["#f4fffa", "#c8f8e8", "#90e8d0", "#58c0a8", "#30887a"],

@@ -69,6 +69,7 @@ globalThis.PC = globalThis.PC || {};
     reg("matrix", new Int32Array(N));        /* a defensive matrix's hit points left, quarter-points */
     reg("matrixT", new Uint16Array(N));      /* and its ticks left */
     reg("inside", new Int32Array(N));        /* the Pelican or Bunker a unit is in, by id; 0 for none */
+    reg("larva", new Uint8Array(N)); reg("larvaT", new Uint16Array(N));   /* a Den's larvae, and the ticks to the next */
 
     /* players */
     reg("ai", new Int32Array(C.MAX_PLAYERS * 32));   /* each computer player's memory (PC.AI) */
@@ -86,6 +87,7 @@ globalThis.PC = globalThis.PC || {};
     W.vis = []; W.det = [];
     for (let p = 0; p < C.MAX_PLAYERS; p++) { W.vis.push(p < players.length ? new Uint16Array(map.w * map.h) : null); W.det.push(p < players.length ? new Uint16Array(map.w * map.h) : null); }
     W.ev = [];   /* this tick's events for the screen and the speakers; not state */
+    W.creep = new Uint8Array(map.w * map.h);   /* the Horde's Range: tiles it covers, rebuilt every tick from its buildings; derived */
     return W;
   };
 
@@ -116,7 +118,7 @@ globalThis.PC = globalThis.PC || {};
       W.oHead[i] = 0; W.oLen[i] = 0;
       W.pathLen[i] = 0; W.pathAt[i] = 0; W.pathWant[i] = 0; W.stuck[i] = 0; W.repaths[i] = 0;
       W.amount[i] = T.amount; W.carry[i] = 0; W.prog[i] = 0; W.qLen[i] = 0; W.rallyT[i] = 0; W.rallyX[i] = 0; W.rallyY[i] = 0;
-      W.home[i] = 0; W.wait[i] = 0; W.kills[i] = 0; W.stim[i] = 0; W.mode[i] = 0; W.modeT[i] = 0; W.matrix[i] = 0; W.matrixT[i] = 0; W.inside[i] = 0;
+      W.home[i] = 0; W.wait[i] = 0; W.kills[i] = 0; W.stim[i] = 0; W.mode[i] = 0; W.modeT[i] = 0; W.matrix[i] = 0; W.matrixT[i] = 0; W.inside[i] = 0; W.larva[i] = T.larvae ? 1 : 0; W.larvaT[i] = 0;
       if (T.kind === "effect") W.modeT[i] = T.life;
       W.energy[i] = T.energy ? Math.min(T.energy, T.energyStart) : 0;
       if (T.foot) {
@@ -136,6 +138,8 @@ globalThis.PC = globalThis.PC || {};
       if (T.foot) PC.World.occupy(W, i, false);
       /* a factory lost mid-training gives back the supply it was holding */
       if (W.qLen[i] && W.prog[i] > 0 && p < C.MAX_PLAYERS && W.queue[i * 5] < PC.Data.RESEARCH) W.supplyUsed[p] -= PC.Data.types[W.queue[i * 5]].supply;
+      /* an egg holds its brood's supply from the moment it is laid */
+      if (T.egg && W.qLen[i] && p < C.MAX_PLAYERS) { const bt = PC.Data.types[W.queue[i * 5]]; W.supplyUsed[p] -= bt.supply * (bt.pair ? 2 : 1); }
       W.qLen[i] = 0;
       /* what it carried: out of a Bunker onto the ground; down with a Pelican */
       if (T.cargo || T.bunker) {

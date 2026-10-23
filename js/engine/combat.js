@@ -180,6 +180,8 @@ globalThis.PC = globalThis.PC || {};
         if ((tick + i) % 32 === 0) { if (W.energy[i] > 0) W.energy[i]--; else { W.flags[i] &= ~F.CLOAKED; W.ev.push(["cloak", i, 0]); } }
       } else if (t.energy && W.energy[i] < t.energy && (tick + i) % 30 === 0) W.energy[i]++;
       if (W.matrixT[i] && --W.matrixT[i] === 0) W.matrix[i] = 0;
+      /* the Horde's flesh knits: a quarter-point every 22 ticks */
+      if (t.regen && W.hp[i] < t.hp && (tick + i) % 22 === 0) W.hp[i]++;
     }
   };
 
