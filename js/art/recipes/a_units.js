@@ -104,7 +104,7 @@
     sheet: "units_a", facings: 16, box: [88, 96, 44, 64],
     anims: { idle: { n: 4, fps: 8 }, walk: { n: 4, fps: 8 }, death: { n: 6, fps: 10, facings: 1 } },
     parts(anim, f, n) {
-      const Z = 26 + Math.sin(f / n * 2 * Math.PI) * 1;
+      const Z = 26 + PC.Paint.sin(f / n * 2 * 3.141592653589793) * 1;
       if (anim === "death") {
         const k = f / (n - 1);
         return [ball([0, 0, Z - k * 22], [8 + k * 6, 7 + k * 6, 5 + k * 4], k < 0.6 ? "amber" : "gunmetal", { glow: k < 0.6, step: k < 0.3 ? 0 : 2 })];
@@ -266,7 +266,7 @@
     sheet: "units_a", facings: 16, box: [80, 92, 40, 64],
     anims: { idle: { n: 4, fps: 6 }, walk: { n: 4, fps: 6 }, death: { n: 6, fps: 10, facings: 1 } },
     parts(anim, f, n) {
-      const Z = 28 + Math.sin(f / 4 * 2 * Math.PI);
+      const Z = 28 + PC.Paint.sin(f / 4 * 2 * 3.141592653589793);
       if (anim === "death") return flyDeath(28, 9)(anim, f, n);
       return [
         cyl([0, 0, Z], [13, 13, 1.4], "gunmetal"),
@@ -275,7 +275,7 @@
         ball([0, 0, Z + 6.5], [3, 3, 1.6], "glass", { glow: true, step: f % 2 }),
         cyl([0, 0, Z - 3], [4, 4, 2], "steel"),
         box([0, 0, Z + 10], [0.6, 0.6, 3], "gunmetal", { rot: [f * 22, 0, 0] }),
-        ball([Math.cos(f * 1.57) * 9, Math.sin(f * 1.57) * 9, Z + 0.6], [1, 1, 1], "glass", { glow: true, step: 0 }),
+        ball([PC.Paint.cos(f * 1.57) * 9, PC.Paint.sin(f * 1.57) * 9, Z + 0.6], [1, 1, 1], "glass", { glow: true, step: 0 }),
       ];
     },
   });

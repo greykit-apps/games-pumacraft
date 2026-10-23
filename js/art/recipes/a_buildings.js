@@ -31,7 +31,7 @@
         const k = f / (n - 1), parts = [slab];
         for (let j = 0; j < 6; j++) {
           const a = j * 1.05, rr = (hx * 0.6) * (0.4 + (j % 3) * 0.3);
-          parts.push(ball([Math.cos(a) * rr, Math.sin(a) * rr * 0.7, 6 + k * 10 + j], [6 + k * 6, 6 + k * 6, 5 + k * 5], k < 0.5 ? "fire" : "smoke", { glow: k < 0.5, step: Math.floor(k * 4) }));
+          parts.push(ball([PC.Paint.cos(a) * rr, PC.Paint.sin(a) * rr * 0.7, 6 + k * 10 + j], [6 + k * 6, 6 + k * 6, 5 + k * 5], k < 0.5 ? "fire" : "smoke", { glow: k < 0.5, step: Math.floor(k * 4) }));
         }
         return parts;
       }

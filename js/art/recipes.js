@@ -22,5 +22,5 @@ globalThis.PC = globalThis.PC || {};
   R.ball = (at, size, ramp, more) => Object.assign({ s: "ball", at, size, ramp }, more);
   R.cyl = (at, size, ramp, more) => Object.assign({ s: "cyl", at, size, ramp }, more);
   R.cone = (at, size, ramp, more) => Object.assign({ s: "cone", at, size, ramp }, more);
-  R.swing = (f, n, amp) => Math.sin(f / n * 2 * Math.PI) * amp;   /* a walk cycle's swing */
+  R.swing = (f, n, amp) => PC.Paint.sin(f / n * 2 * 3.141592653589793) * amp;   /* a walk cycle's swing */
 })();

@@ -29,7 +29,7 @@
       /* steam: small puffs that swell and pale as they rise */
       for (let k = 0; k < 4; k++) {
         const u = ((f + k) % 4) / 4, z = 10 + u * 30, s = 2.2 + u * 3.5;
-        parts.push(ball([Math.sin(k * 2.1 + f) * 2 + u * 4, 0, z], [s, s * 0.8, s * 0.7], "steam", { glow: true, step: u < 0.3 ? 2 : u < 0.6 ? 1 : 0 }));
+        parts.push(ball([PC.Paint.sin(k * 2.1 + f) * 2 + u * 4, 0, z], [s, s * 0.8, s * 0.7], "steam", { glow: true, step: u < 0.3 ? 2 : u < 0.6 ? 1 : 0 }));
       }
       return parts;
     },
