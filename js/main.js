@@ -58,6 +58,12 @@
 
   /* ---- the boot and the title (§3, §14) ---- */
   const q = new URLSearchParams(location.search);
+  /* ?sandbox: straight to the engine's test bed, no boot (js/sandbox.js) */
+  if (q.has("sandbox")) {
+    document.getElementById("title-host").hidden = true;
+    PC.Sheets.load().then(() => PC.Sandbox.start()).catch(e => alertSheet(String(e.message || e), "The sandbox could not start"));
+    return;
+  }
   const intro = startIntro({ audio: A.ctx, lines: [
     bootReloadLine(),
     gkFact("build", "front door"),
