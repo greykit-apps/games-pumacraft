@@ -53,6 +53,8 @@ globalThis.PC = globalThis.PC || {};
       trains: d.trains || [], builds: (d.builds || []).concat(d.buildsAdvanced || []), buildsBasic: (d.builds || []).length, req: d.req || [],
       dropoff: !!d.dropoff, onVapour: !!d.onVapour, amount: d.amount || 0, gather: d.gather || 0,
       mine: d.mine || 0, carry: d.carry || 0,
+      cargo: d.cargo || 0, bunker: d.bunker ? { slots: d.bunker.slots, range: px(d.bunker.range) } : null, lift: !!d.lift, liftSpeed: px(d.liftSpeed || 1),
+      life: d.life || 0, slots: d.size === "large" ? 4 : d.size === "medium" ? 2 : 1,
     };
     if (t.foot) t.r = Math.floor(Math.min(t.foot[0], t.foot[1]) * C.TILE_FP / 2);
     D.types.push(t);
@@ -65,6 +67,8 @@ globalThis.PC = globalThis.PC || {};
     D.factions[id] = { id, name: def.name, short: def.short || def.name, units: [], buildings: [], upgrades: [] };
     for (const [k, u] of Object.entries(def.units || {})) D.factions[id].units.push(addType(k, "unit", id, u).id);
     for (const [k, b] of Object.entries(def.buildings || {})) D.factions[id].buildings.push(addType(k, "building", id, b).id);
+    /* effects: things a faction makes that are not units (a scanner sweep's eye) */
+    for (const [k, e] of Object.entries(def.effects || {})) addType(k, "effect", id, e);
     /* upgrades: levels, a cost and a time for each, where they are researched, and what each level needs */
     for (const [k, u] of Object.entries(def.upgrades || {})) {
       if (D.upByKey[k]) throw new Error("upgrade registered twice: " + k);

@@ -165,14 +165,14 @@ globalThis.PC = globalThis.PC || {};
     head.fill(-1);
     for (let k = count - 1; k >= 0; k--) {
       const i = order[k];
-      if (W.flags[i] & (F.AIR | F.BUILDING | F.RESOURCE)) continue;
+      if (W.flags[i] & (F.AIR | F.BUILDING | F.RESOURCE | F.INSIDE | F.EFFECT)) continue;
       const t = M.tileAt(map, W.x[i], W.y[i]);
       if (t < 0) continue;
       next[i] = head[t]; head[t] = i;
     }
     for (let k = 0; k < count; k++) {
       const i = order[k];
-      if (W.flags[i] & (F.AIR | F.BUILDING | F.RESOURCE)) continue;
+      if (W.flags[i] & (F.AIR | F.BUILDING | F.RESOURCE | F.INSIDE | F.EFFECT)) continue;
       const tx = Math.floor(W.x[i] / C.TILE_FP), ty = Math.floor(W.y[i] / C.TILE_FP), ri = T[W.type[i]].r;
       const ghost = W.flags[i] & F.WORKER && (W.oLen[i] && (W.oK[i * C.ORDERS + W.oHead[i]] === C.ORD.GATHER || W.oK[i * C.ORDERS + W.oHead[i]] === C.ORD.RETURN));
       if (ghost) continue;

@@ -44,7 +44,7 @@
     const T = PC.Data.types;
     list.length = 0;
     for (let i = 0; i < C.MAX_UNITS; i++) {
-      if (!(W.flags[i] & F.ALIVE) || !Sp.shown(W, i)) continue;
+      if (!(W.flags[i] & F.ALIVE) || (W.flags[i] & (F.INSIDE | F.EFFECT)) || !Sp.shown(W, i)) continue;
       const [x, y] = pos(W, i, alpha);
       if (x < camX - 96 || y < camY - 64 || x > camX + vw + 96 || y > camY + vh + 128) continue;
       list.push([W.flags[i] & F.AIR ? 1 : 0, y, x, i]);
@@ -70,7 +70,9 @@
         const anim = (fl & F.MOVING) ? "walk" : (W.cd[i] > PC.Data.types[W.type[i]].weapons.reduce((m, w) => Math.max(m, w.cd), 0) - 3 && W.target[i]) ? "attack" : kind === C.ORD.CONSTRUCT || (kind === C.ORD.GATHER && W.prog[i] > 0) ? "work" : "idle";
         fr = Sp.frame(t.art, anim, ms + i * 37, W.facing[i]);
       }
-      const sx = Math.round(ox + x - camX), sy = Math.round(oy + y - camY);
+      const lift = (fl & F.BUILDING) && W.mode[i] === 4 ? 18 : 0;
+      const sx = Math.round(ox + x - camX), sy = Math.round(oy + y - camY) - lift;
+      if (lift) { g.fillStyle = "rgba(0,0,0,.3)"; g.beginPath(); g.ellipse(sx + 10, sy + lift + 4, t.foot[0] * 11, t.foot[1] * 8, 0, 0, Math.PI * 2); g.fill(); }
       if (!fr || !fr.r || !fr.r[2]) { g.fillStyle = "#ff00ff"; g.fillRect(sx - 2, sy - 2, 4, 4); continue; }
       const [fx, fy, w, h, ax, ay] = fr.r, sheet = PC.Sheets.sheet(fr.sheet, W.owner[i]);
       /* cloaked: a ghost of itself, to its owner and to whoever detects it */

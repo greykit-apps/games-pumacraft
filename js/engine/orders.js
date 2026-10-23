@@ -18,7 +18,6 @@
 globalThis.PC = globalThis.PC || {};
 (() => {
   const C = PC.C, F = C.F, CMD = C.CMD, ORD = C.ORD, Fx = PC.Fixed, M = PC.Map, Wo = PC.World;
-  ORD.CONSTRUCT = 9;
   const O = PC.Orders = {};
 
   /** Queues a command; it takes effect at tick cmd.t (no earlier than the current one). */
@@ -69,7 +68,8 @@ globalThis.PC = globalThis.PC || {};
     const s = slot(W, i, 0), k = W.oK[s];
     W.stuck[i] = 0; W.repaths[i] = 0; W.pathLen[i] = 0; W.pathAt[i] = 0; W.target[i] = 0;
     W.flags[i] &= ~F.MOVING;
-    if (k === ORD.MOVE || k === ORD.PATROL || k === ORD.AMOVE) O.goTo(W, i, W.oX[s], W.oY[s]);
+    if (k === ORD.MOVE || k === ORD.PATROL || k === ORD.AMOVE || k === ORD.UNLOAD || k === ORD.LAND) O.goTo(W, i, W.oX[s], W.oY[s]);
+    else if (k === ORD.ENTER || k === ORD.REPAIR) { const j = Wo.live(W, W.oT[s]); if (j >= 0) O.goTo(W, i, W.x[j], W.y[j]); }
     else if (k === ORD.GATHER || k === ORD.RETURN || k === ORD.BUILD) PC.Econ.begin(W, i, k, s);
   };
   /** The head order is done; the next begins. */
@@ -88,12 +88,44 @@ globalThis.PC = globalThis.PC || {};
       if (units.indexOf(i) < 0) units.push(i);
     }
     if (!units.length) return;
-    /* buildings take production commands; everything else takes orders -- except a unit dug in, or digging, which can only fight or pack up */
-    const buildings = units.filter(i => W.flags[i] & F.BUILDING), mobile = units.filter(i => !(W.flags[i] & F.BUILDING) && (W.mode[i] === 0 || c.k === CMD.ABILITY || c.k === CMD.STOP || (c.k === CMD.ATTACK && c.tgt && W.mode[i] === 1)));
+    const T = PC.Data.types;
+    /* buildings take production commands; everything else takes orders -- except a unit dug in, or digging, which can only fight or pack up, and one carried, which waits to be let out */
+    const buildings = units.filter(i => (W.flags[i] & F.BUILDING) && W.mode[i] !== 4);
+    const lifted = units.filter(i => (W.flags[i] & F.BUILDING) && W.mode[i] === 4);
+    const mobile = units.filter(i => !(W.flags[i] & (F.BUILDING | F.INSIDE)) && (W.mode[i] === 0 || c.k === CMD.ABILITY || c.k === CMD.STOP || (c.k === CMD.ATTACK && c.tgt && W.mode[i] === 1)));
     if (c.k === CMD.TRAIN || c.k === CMD.CANCEL || c.k === CMD.RALLY || c.k === CMD.RESEARCH) { PC.Econ.command(W, c, buildings); return; }
     if (c.k === CMD.ABILITY) { ability(W, c, units); return; }
-    if (!mobile.length) return;
     const x = clampX(W, c.x), y = clampY(W, c.y);
+    /* ---- buildings that fly ---- */
+    if (c.k === CMD.LIFT) {
+      for (const b of buildings) {
+        const t = T[W.type[b]];
+        if (!t.lift || (W.flags[b] & F.UNDER_CONSTRUCTION) || W.qLen[b]) continue;
+        Wo.occupy(W, b, false); W.flags[b] |= F.AIR; W.mode[b] = 4; W.oLen[b] = 0; W.ev.push(["lift", b, 1]);
+      }
+      return;
+    }
+    if (lifted.length) {
+      if (c.k === CMD.LAND) for (const b of lifted) O.give(W, b, ORD.LAND, x, y, 0, false);
+      else if (c.k === CMD.MOVE) for (const b of lifted) O.give(W, b, ORD.MOVE, x, y, 0, c.q);
+      else if (c.k === CMD.STOP) for (const b of lifted) { W.oLen[b] = 0; W.flags[b] &= ~F.MOVING; }
+      if (!mobile.length) return;
+    }
+    /* ---- carriers ---- */
+    if (c.k === CMD.UNLOAD) {
+      for (const b of units) {
+        const t = T[W.type[b]];
+        if (t.bunker) O.unloadAll(W, b);
+        else if (t.cargo) O.give(W, b, ORD.UNLOAD, c.x || c.y ? x : W.x[b], c.x || c.y ? y : W.y[b], 0, c.q);
+      }
+      return;
+    }
+    if (!mobile.length) return;
+    if (c.k === CMD.LOAD) {
+      for (const i of mobile) if (!(W.flags[i] & F.AIR) && !T[W.type[i]].cargo) O.give(W, i, ORD.ENTER, 0, 0, c.tgt, c.q);
+      return;
+    }
+    if (c.k === CMD.REPAIR) { for (const i of mobile) if (W.flags[i] & F.WORKER) O.give(W, i, ORD.REPAIR, 0, 0, c.tgt, c.q); return; }
     if (c.k === CMD.STOP) { for (const i of mobile) { W.oLen[i] = 0; W.target[i] = 0; W.flags[i] &= ~F.MOVING; W.pathLen[i] = 0; W.pathWant[i] = 0; } return; }
     if (c.k === CMD.HOLD) { for (const i of mobile) O.give(W, i, ORD.HOLD, W.x[i], W.y[i], 0, c.q); return; }
     if (c.k === CMD.ATTACK && c.tgt) {
@@ -127,7 +159,7 @@ globalThis.PC = globalThis.PC || {};
   }
 
   /* ---- abilities a unit uses on itself, by number: 1 the adrenal shot ---- */
-  O.ABILITY = { stim: 1, siege: 2, cloak: 3, matrix: 4 };
+  O.ABILITY = { stim: 1, siege: 2, cloak: 3, matrix: 4, scan: 5 };
   function ability(W, c, units) {
     const T = PC.Data.types;
     if (c.tgt === O.ABILITY.cloak) {
@@ -140,6 +172,16 @@ globalThis.PC = globalThis.PC || {};
         if (want && !on && W.energy[i] >= 25) { W.energy[i] -= 25; W.flags[i] |= F.CLOAKED; W.ev.push(["cloak", i, 1]); }
         else if (!want && on) { W.flags[i] &= ~F.CLOAKED; W.ev.push(["cloak", i, 0]); }
       }
+      return;
+    }
+    if (c.tgt === O.ABILITY.scan) {
+      /* a scanner sweep at (x, y): 50 energy from a Command Post, an eye there for ten seconds */
+      const caster = units.find(i => T[W.type[i]].abilities.includes("scan") && W.energy[i] >= 50 && W.mode[i] === 0);
+      const eye = PC.Data.byKey.a_scan;
+      if (caster === undefined || !eye) return;
+      W.energy[caster] -= 50;
+      Wo.spawn(W, eye.id, c.p, clampX(W, c.x), clampY(W, c.y));
+      W.ev.push(["scan", caster, c.x, c.y]);
       return;
     }
     if (c.tgt === O.ABILITY.matrix) {
@@ -183,6 +225,36 @@ globalThis.PC = globalThis.PC || {};
     }
   }
 
+  /* ---- carrying ---- */
+  /** The slots used in container b. */
+  O.cargoUsed = (W, b) => { const me = Wo.id(W, b); let n = 0; for (let j = 0; j < C.MAX_UNITS; j++) if ((W.flags[j] & F.ALIVE) && W.inside[j] === me) n += PC.Data.types[W.type[j]].slots; return n; };
+  O.capacity = (W, b) => { const t = PC.Data.types[W.type[b]]; return t.cargo || (t.bunker ? t.bunker.slots : 0); };
+  /** Lets everyone out of container b, onto the open ground nearest it. */
+  O.unloadAll = (W, b) => {
+    const me = Wo.id(W, b), t = PC.Data.types[W.type[b]], used = [];
+    for (let j = 0; j < C.MAX_UNITS; j++) {
+      if (!(W.flags[j] & F.ALIVE) || W.inside[j] !== me) continue;
+      let spot = null;
+      if (t.foot) spot = PC.Econ.exitPoint(W, b, W.x[b], W.y[b] + 3 * C.TILE_FP);
+      else {
+        const tx = Math.floor(W.x[b] / C.TILE_FP), ty = Math.floor(W.y[b] / C.TILE_FP);
+        for (let r = 0; r < 6 && !spot; r++) for (let dy = -r; dy <= r && !spot; dy++) for (let dx = -r; dx <= r && !spot; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const k = (ty + dy) * W.map.w + tx + dx;
+          if (tx + dx < 0 || ty + dy < 0 || tx + dx >= W.map.w || ty + dy >= W.map.h || W.walk[k] !== M.FULL || used.includes(k)) continue;
+          used.push(k); spot = [M.centre(tx + dx), M.centre(ty + dy)];
+        }
+      }
+      if (!spot) continue;   /* nowhere to stand: they stay in */
+      W.inside[j] = 0; W.flags[j] &= ~F.INSIDE;
+      W.x[j] = W.px[j] = spot[0]; W.y[j] = W.py[j] = spot[1];
+      W.ev.push(["unload", j, b]);
+    }
+  };
+  /** Bunker b's extra reach for those inside it: its own range, from its rim. */
+  const bunkerReach = (W, i) => { const b = Wo.live(W, W.inside[i]); if (b < 0) return 0; const t = PC.Data.types[W.type[b]]; return t.bunker ? t.bunker.range + (Math.min(t.foot[0], t.foot[1]) * C.TILE_FP >> 1) : 0; };
+  O.bunkerReach = bunkerReach;
+
   /* ---- the step ---- */
   const reachOf = (W, i, t) => { let r = t.acquire; for (const w of PC.Combat.weapons(W, i)) if (w.range > r) r = w.range; return r; };
   const shortest = (W, i) => { let r = 1 << 30; for (const w of PC.Combat.weapons(W, i)) if (w.range < r) r = w.range; return r; };
@@ -194,7 +266,31 @@ globalThis.PC = globalThis.PC || {};
       const i = order[k];
       W.px[i] = W.x[i]; W.py[i] = W.y[i];
       const fl = W.flags[i];
-      if (!(fl & F.ALIVE) || (fl & F.RESOURCE)) continue;   /* killed earlier this tick, or not a unit */
+      if (!(fl & F.ALIVE) || (fl & (F.RESOURCE | F.EFFECT))) continue;   /* killed earlier this tick, or not a unit */
+      if (fl & F.INSIDE) {
+        /* carried: it goes where its carrier goes; in a Bunker it fires out, with the Bunker's reach */
+        const b = Wo.live(W, W.inside[i]);
+        if (b < 0) { W.inside[i] = 0; W.flags[i] &= ~F.INSIDE; continue; }
+        W.x[i] = W.px[i] = W.x[b]; W.y[i] = W.py[i] = W.y[b];
+        if (PC.Data.types[W.type[b]].bunker && PC.Data.types[W.type[i]].weapons.length) {
+          if (W.target[i] && !PC.Combat.fight(W, i, W.target[i], -1)) W.target[i] = 0;
+          else if (!W.target[i] && (tick + i) % 8 === 0) { const j = PC.Combat.acquire(W, i, reachOf(W, i, T[W.type[i]]) + bunkerReach(W, i)); if (j >= 0) W.target[i] = Wo.id(W, j); }
+        }
+        continue;
+      }
+      if ((fl & F.BUILDING) && W.mode[i] === 4) {
+        /* a building in the air: it flies where it is sent, and lands where it is told if the ground is clear */
+        const t = T[W.type[i]], kind = O.headKind(W, i), s = slot(W, i, 0), ft = { speed: t.liftSpeed, r: t.r };
+        if ((kind === ORD.MOVE || kind === ORD.LAND) && O.walk(W, i, ft)) {
+          if (kind === ORD.LAND) {
+            const why = PC.Econ.canPlace(W, W.owner[i], t, W.oX[s], W.oY[s], -1, i);
+            if (why) W.ev.push(["error", W.owner[i], why, i]);
+            else { W.x[i] = W.px[i] = W.oX[s]; W.y[i] = W.py[i] = W.oY[s]; W.mode[i] = 0; W.flags[i] &= ~F.AIR; Wo.occupy(W, i, true); W.ev.push(["lift", i, 0]); }
+          }
+          O.done(W, i);
+        }
+        continue;
+      }
       if (fl & F.BUILDING) {
         /* a tower: fires on what comes in range, and never moves */
         if ((fl & F.UNDER_CONSTRUCTION) || !T[W.type[i]].weapons.length) continue;
@@ -243,6 +339,24 @@ globalThis.PC = globalThis.PC || {};
             O.begin(W, i);
           } else O.done(W, i);
         }
+        continue;
+      }
+      if (kind === ORD.ENTER) {
+        /* walk to the carrier, and in, if there is room */
+        const b = Wo.live(W, W.oT[s]), bt = b >= 0 ? T[W.type[b]] : null;
+        if (!bt || W.owner[b] !== W.owner[i] || !(bt.cargo || bt.bunker) || (bt.bunker && !t.bio) || (W.flags[b] & F.UNDER_CONSTRUCTION)) { O.done(W, i); continue; }
+        if (PC.Combat.gap(W, i, b) <= 12 * C.ONE) {
+          if (O.cargoUsed(W, b) + t.slots > O.capacity(W, b)) { W.ev.push(["error", W.owner[i], "full", i]); O.done(W, i); continue; }
+          W.inside[i] = Wo.id(W, b); W.flags[i] |= F.INSIDE; W.flags[i] &= ~F.MOVING; W.target[i] = 0; W.oLen[i] = 0; W.pathLen[i] = 0;
+          W.ev.push(["load", i, b]);
+          continue;
+        }
+        if (Fx.len(W.goalX[i] - W.x[b], W.goalY[i] - W.y[b]) > C.TILE_FP || !(W.flags[i] & F.MOVING)) O.goTo(W, i, W.x[b], W.y[b]);
+        if (O.walk(W, i, t) && PC.Combat.gap(W, i, b) > 3 * C.TILE_FP) O.goTo(W, i, W.x[b], W.y[b]);
+        continue;
+      }
+      if (kind === ORD.UNLOAD) {
+        if (O.walk(W, i, t) || (W.x[i] === W.oX[s] && W.y[i] === W.oY[s])) { O.unloadAll(W, i); O.done(W, i); }
         continue;
       }
       PC.Econ.unit(W, i, kind, s, t);

@@ -68,6 +68,7 @@ globalThis.PC = globalThis.PC || {};
     reg("modeT", new Uint16Array(N));        /* ticks left of digging in or packing up */
     reg("matrix", new Int32Array(N));        /* a defensive matrix's hit points left, quarter-points */
     reg("matrixT", new Uint16Array(N));      /* and its ticks left */
+    reg("inside", new Int32Array(N));        /* the Pelican or Bunker a unit is in, by id; 0 for none */
 
     /* players */
     reg("ai", new Int32Array(C.MAX_PLAYERS * 32));   /* each computer player's memory (PC.AI) */
@@ -108,14 +109,15 @@ globalThis.PC = globalThis.PC || {};
       /* generations start at 1, so no live id is ever 0 */
       W.gen[i] = (W.gen[i] % 0x7fff) + 1;
       W.type[i] = t; W.owner[i] = p;
-      W.flags[i] = F.ALIVE | (T.kind === "building" ? F.BUILDING : 0) | (T.air ? F.AIR : 0) | (T.worker ? F.WORKER : 0) | (T.kind === "resource" ? F.RESOURCE : 0);
+      W.flags[i] = F.ALIVE | (T.kind === "building" ? F.BUILDING : 0) | (T.air ? F.AIR : 0) | (T.worker ? F.WORKER : 0) | (T.kind === "resource" ? F.RESOURCE : 0) | (T.kind === "effect" ? F.EFFECT : 0);
       W.x[i] = W.px[i] = x; W.y[i] = W.py[i] = y;
       W.hp[i] = T.hp; W.shield[i] = T.shield; W.energy[i] = 0;
       W.facing[i] = 64; W.target[i] = 0; W.cd[i] = 0;
       W.oHead[i] = 0; W.oLen[i] = 0;
       W.pathLen[i] = 0; W.pathAt[i] = 0; W.pathWant[i] = 0; W.stuck[i] = 0; W.repaths[i] = 0;
       W.amount[i] = T.amount; W.carry[i] = 0; W.prog[i] = 0; W.qLen[i] = 0; W.rallyT[i] = 0; W.rallyX[i] = 0; W.rallyY[i] = 0;
-      W.home[i] = 0; W.wait[i] = 0; W.kills[i] = 0; W.stim[i] = 0; W.mode[i] = 0; W.modeT[i] = 0; W.matrix[i] = 0; W.matrixT[i] = 0;
+      W.home[i] = 0; W.wait[i] = 0; W.kills[i] = 0; W.stim[i] = 0; W.mode[i] = 0; W.modeT[i] = 0; W.matrix[i] = 0; W.matrixT[i] = 0; W.inside[i] = 0;
+      if (T.kind === "effect") W.modeT[i] = T.life;
       W.energy[i] = T.energy ? Math.min(T.energy, T.energyStart) : 0;
       if (T.foot) {
         PC.World.occupy(W, i, true);
@@ -135,6 +137,16 @@ globalThis.PC = globalThis.PC || {};
       /* a factory lost mid-training gives back the supply it was holding */
       if (W.qLen[i] && W.prog[i] > 0 && p < C.MAX_PLAYERS && W.queue[i * 5] < PC.Data.RESEARCH) W.supplyUsed[p] -= PC.Data.types[W.queue[i * 5]].supply;
       W.qLen[i] = 0;
+      /* what it carried: out of a Bunker onto the ground; down with a Pelican */
+      if (T.cargo || T.bunker) {
+        const me = PC.World.id(W, i);
+        for (let j = 0; j < C.MAX_UNITS; j++) {
+          if (!(W.flags[j] & F.ALIVE) || W.inside[j] !== me) continue;
+          W.inside[j] = 0; W.flags[j] &= ~F.INSIDE;
+          if (T.cargo) { W.ev.push(["die", j, W.x[j], W.y[j], W.type[j], W.owner[j]]); PC.World.kill(W, j); }
+          else { const [x, y] = PC.Econ.exitPoint(W, i, W.x[i], W.y[i] + C.TILE_FP * 3); W.x[j] = W.px[j] = x; W.y[j] = W.py[j] = y; }
+        }
+      }
       W.flags[i] = 0; W.oLen[i] = 0; W.pathLen[i] = 0; W.pathWant[i] = 0;
       W.free[W.hdr[1]++] = i;
     },

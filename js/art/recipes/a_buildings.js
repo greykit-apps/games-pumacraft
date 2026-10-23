@@ -215,4 +215,16 @@
       cyl([0, 0, 30], [0.5, 0.5, 2], "gunmetal"), ball([0, 0, 33], [1.6, 1.6, 0.8], "glass", { glow: true, step: f % 2 }),
     ], 2, 2),
   });
+  /* ---- the Bunker: sandbagged concrete, firing slits, room for four ---- */
+  add("a_bunker", {
+    sheet: "buildings_a", facings: 1, heading: 0, box: frameFor(3, 2, 36),
+    anims: { idle: { n: 1, fps: 1 }, work: { n: 1, fps: 1 }, build: { n: 3, fps: 1 }, death: { n: 5, fps: 8 } },
+    parts: building(() => [
+      box([0, 0, 5], [30, 18, 5], "rock"),
+      box([0, 0, 10.6], [26, 14, 1.2], "gunmetal"),
+      box([0, 18.3, 7], [20, 0.4, 0.9], "rubber"), box([-31, 0, 7], [0.4, 10, 0.9], "rubber"), box([31, 0, 7], [0.4, 10, 0.9], "rubber"),
+      box([0, 0, 12.2], [8, 6, 0.4], "team"),
+      ball([-24, 17, 2], [5, 3, 2], "olive"), ball([-14, 18, 2], [5, 3, 2], "olive"), ball([14, 18, 2], [5, 3, 2], "olive"), ball([24, 17, 2], [5, 3, 2], "olive"),
+    ], 3, 2),
+  });
 })();

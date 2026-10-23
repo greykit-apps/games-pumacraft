@@ -42,6 +42,11 @@
     cloak: ["..####..", ".#....#.", "#.#..#.#", "#......#", "#.####.#", ".#....#.", "..####..", "........"],
     matrix: ["..####..", ".##..##.", "##.##.##", "#.####.#", "##.##.##", ".##..##.", "..####..", "........"],
     buildAdv: ["#####.#.", "#####.#.", "..##.###", "..##..#.", "..##....", "..##....", "..##....", "........"],
+    repair: ["....##..", "...#..#.", "...#.##.", "..##.#..", ".##.....", "##......", "#.......", "........"],
+    unload: ["...##...", "...##...", "...##...", ".######.", "..####..", "...##...", "########", "........"],
+    lift: ["...##...", "..####..", ".######.", "...##...", "########", "#......#", "########", "........"],
+    land: ["########", "#......#", "########", "...##...", ".######.", "..####..", "...##...", "........"],
+    scan: ["..####..", ".#....#.", "#..##..#", "#.#..#.#", "#..##..#", ".#....#.", "..####..", "........"],
     siege: ["...##...", "..####..", "...##...", "...##...", ".######.", "##.##.##", "#..##..#", "#......#"],
   };
   function glyph(name, colour = "#54f2ff") {
@@ -119,7 +124,7 @@
   P.speedOf = k => ({ slow: 0.5, normal: 0.67, fast: 0.85, fastest: 1 })[k] || 0.85;
   P.stop = () => { V.stop(); V.over = null; const host = $("#game-host"); host.hidden = true; host.innerHTML = ""; unwire(); };
 
-  const ERR = { ore: "Not enough ore.", vapour: "Not enough vapour.", supply: "More supply is needed: build a Supply Depot.", place: "Cannot build there.",
+  const ERR = { full: "There is no room inside.", ore: "Not enough ore.", vapour: "Not enough vapour.", supply: "More supply is needed: build a Supply Depot.", place: "Cannot build there.",
     queue: "The queue is full.", tech: "That needs another building first.", busy: "That is already being researched.", done: "That is already fully researched." };
   function say(text, ms = 2500) { P.msg = { text, until: performance.now() + ms }; const el = $(".pc-msg", P.box); if (el) { el.textContent = text; el.classList.add("on"); } }
 
@@ -134,8 +139,8 @@
     const W = P.W;
     let best = -1, bestScore = -Infinity;
     for (let i = 0; i < C.MAX_UNITS; i++) {
-      if (!(W.flags[i] & F.ALIVE) || !Sp.shown(W, i)) continue;
-      const t = T()[W.type[i]], x = W.x[i] / C.ONE, y = W.y[i] / C.ONE, air = W.flags[i] & F.AIR;
+      if (!(W.flags[i] & F.ALIVE) || (W.flags[i] & (F.INSIDE | F.EFFECT)) || !Sp.shown(W, i)) continue;
+      const t = T()[W.type[i]], x = W.x[i] / C.ONE, y = W.y[i] / C.ONE - (W.mode[i] === 4 ? 18 : 0), air = W.flags[i] & F.AIR;
       let hit = false;
       if (t.foot) hit = Math.abs(wx - x) <= t.foot[0] * 12 && wy <= y + t.foot[1] * 12 && wy >= y - t.foot[1] * 12 - 20;
       else { const r = Math.max(7, t.r / C.ONE + 3), cy = y - (air ? 22 : 7); hit = Math.abs(wx - x) <= r && Math.abs(wy - cy) <= r + 4; }
@@ -164,7 +169,7 @@
     const W = P.W, [ax, ay] = world(Math.min(x0, x1), Math.min(y0, y1)), [bx, by] = world(Math.max(x0, x1), Math.max(y0, y1));
     const units = [], buildings = [];
     for (let i = 0; i < C.MAX_UNITS; i++) {
-      if (!(W.flags[i] & F.ALIVE) || !mine(i)) continue;
+      if (!(W.flags[i] & F.ALIVE) || (W.flags[i] & (F.INSIDE | F.EFFECT)) || !mine(i)) continue;
       const x = W.x[i] / C.ONE, y = W.y[i] / C.ONE - (W.flags[i] & F.AIR ? 22 : 4);
       if (x < ax || x > bx || y < ay || y > by) continue;
       (W.flags[i] & F.BUILDING ? buildings : units).push(i);
@@ -193,11 +198,13 @@
     const W = P.W, s = selSlots().filter(mine);
     if (!s.length) return;
     const j = pick(wx, wy), x = fp(wx), y = fp(wy);
-    const buildings = s.filter(i => W.flags[i] & F.BUILDING), mobile = s.filter(i => !(W.flags[i] & F.BUILDING));
+    const buildings = s.filter(i => (W.flags[i] & F.BUILDING) && W.mode[i] !== 4), mobile = s.filter(i => !(W.flags[i] & F.BUILDING) || W.mode[i] === 4);
     if (buildings.length && !mobile.length) { order(CMD.RALLY, { x, y, tgt: j >= 0 ? PC.World.id(W, j) : 0 }, buildings); flash(wx, wy, "#54f2ff"); return; }
     if (j >= 0) {
       const tj = T()[W.type[j]], id = PC.World.id(W, j), workers = mobile.filter(i => W.flags[i] & F.WORKER), others = mobile.filter(i => !(W.flags[i] & F.WORKER));
       if (W.owner[j] < C.MAX_PLAYERS && W.owner[j] !== P.me && PC.Combat.hostile(W, mobile[0], j)) { order(CMD.ATTACK, { tgt: id, q: shift }, mobile); flash(wx, wy, "#ff5266"); return; }
+      if (mine(j) && (tj.cargo || tj.bunker) && j !== mobile[0] && mobile.some(i => !(W.flags[i] & F.AIR))) { order(CMD.LOAD, { tgt: id, q: shift }, mobile.filter(i => !(W.flags[i] & F.AIR) && (!tj.bunker || T()[W.type[i]].bio))); flash(wx, wy, "#54f2ff"); return; }
+      if (mine(j) && workers.length && (tj.mech || tj.kind === "building") && !(W.flags[j] & F.UNDER_CONSTRUCTION) && W.hp[j] < tj.hp) { order(CMD.REPAIR, { tgt: id, q: shift }, workers); flash(wx, wy, "#54f2ff"); return; }
       const gatherable = (W.flags[j] & F.RESOURCE && tj.gather === 1) || (tj.onVapour && mine(j) && !(W.flags[j] & F.UNDER_CONSTRUCTION));
       if (gatherable && workers.length) { order(CMD.GATHER, { tgt: id, q: shift }, workers); if (others.length) order(CMD.MOVE, { x, y, q: shift }, others); flash(wx, wy, "#ffb000"); return; }
       if (tj.dropoff && mine(j) && workers.some(i => W.carry[i])) { order(CMD.RETURN, { q: shift }, workers.filter(i => W.carry[i])); return; }
@@ -214,6 +221,14 @@
     const W = P.W, s = selSlots().filter(mine);
     if (!s.length) return [];
     const lead = s[0], lt = T()[W.type[lead]];
+    if ((W.flags[lead] & F.BUILDING) && W.mode[lead] === 4) {
+      /* in the air */
+      return [
+        { key: "V", glyph: "move", tip: "Move", act: () => { P.mode = { kind: "target", cmd: CMD.MOVE }; } },
+        { key: "S", glyph: "stop", tip: "Stop", act: () => order(CMD.STOP) }, , , , , ,
+        { key: "L", glyph: "land", tip: "Land", note: "Choose clear ground for it to set down on.", act: () => { P.mode = { kind: "land", type: W.type[lead], b: PC.World.id(W, lead) }; } },
+      ];
+    }
     if (W.flags[lead] & F.BUILDING) {
       if (W.flags[lead] & F.UNDER_CONSTRUCTION) return [, , , , , , , , { key: "Escape", label: "Esc", glyph: "cancel", tip: "Cancel construction (three quarters back)", act: () => order(CMD.CANCEL, { tgt: -1 }, [lead]) }];
       const b = lt.trains.map(id => { const ut = T()[id]; return { key: ut.hotkey, type: id, tip: `${ut.name}`, cost: ut.cost, supply: ut.supply, req: ut.req, act: () => order(CMD.TRAIN, { tgt: id }, s.filter(i => W.type[i] === W.type[lead])) }; });
@@ -227,6 +242,9 @@
       }
       while (b.length < 6) b.push(undefined);
       if (lt.trains.length) b[6] = { key: "Y", glyph: "rally", tip: "Set the rally point", act: () => { P.mode = { kind: "rally" }; } };
+      if (lt.abilities.includes("scan")) b[3] = { key: "S", glyph: "scan", tip: "Scanner sweep", note: "See, and see the hidden, thirteen tiles round any point, for ten seconds. 50 energy.", act: () => { P.mode = { kind: "scan" }; } };
+      if (lt.bunker && PC.Orders.cargoUsed(W, lead)) b[5] = { key: "U", glyph: "unload", tip: "Let them out", act: () => order(CMD.UNLOAD, {}, [lead]) };
+      if (lt.lift && !W.qLen[lead]) b[7] = { key: "L", glyph: "lift", tip: "Lift off", note: "It flies, slowly, and trains nothing until it lands.", act: () => order(CMD.LIFT, {}, [lead]) };
       if (W.qLen[lead]) b[8] = { key: "Escape", label: "Esc", glyph: "cancel", tip: "Cancel the last in the queue", act: () => order(CMD.CANCEL, { tgt: W.qLen[lead] - 1 }, [lead]) };
       return b;
     }
@@ -239,6 +257,16 @@
       return b;
     }
     const armed = s.some(i => T()[W.type[i]].weapons.length), workers = s.some(i => W.flags[i] & F.WORKER);
+    if (s.every(i => W.flags[i] & F.WORKER)) return [
+      { key: "V", glyph: "move", tip: "Move", act: () => { P.mode = { kind: "target", cmd: CMD.MOVE }; } },
+      { key: "S", glyph: "stop", tip: "Stop", act: () => order(CMD.STOP) },
+      { key: "A", glyph: "attack", tip: "Attack", act: () => { P.mode = { kind: "target", cmd: CMD.ATTACK }; } },
+      { key: "R", glyph: "repair", tip: "Repair", note: "A machine or a building of yours, for a little ore as it goes.", act: () => { P.mode = { kind: "target", cmd: CMD.REPAIR }; } },
+      { key: "G", glyph: "gather", tip: "Gather ore or vapour", act: () => { P.mode = { kind: "target", cmd: CMD.GATHER }; } },
+      { key: "C", glyph: "ret", tip: "Bring the load home", act: () => order(CMD.RETURN) },
+      { key: "B", glyph: "build", tip: "Build", act: () => { P.menu = "build"; card(); } },
+      { key: "N", glyph: "buildAdv", tip: "Build advanced", act: () => { P.menu = "build2"; card(); } },
+    ];
     const b = [
       /* Move is V: M is sound, everywhere, in every greykit game (games-meta STANDARD.md §8) */
       { key: "V", glyph: "move", tip: "Move", act: () => { P.mode = { kind: "target", cmd: CMD.MOVE }; } },
@@ -268,12 +296,8 @@
     }
     if (s.some(i => T()[W.type[i]].abilities.includes("matrix")))
       b[7] = { key: "D", glyph: "matrix", tip: "Defensive matrix", note: "On a friendly unit: it takes the next 250 points of damage for ten seconds. 100 energy.", act: () => { P.mode = { kind: "ability", ab: PC.Orders.ABILITY.matrix }; } };
-    if (workers) {
-      b[5] = { key: "N", glyph: "buildAdv", tip: "Build advanced", act: () => { P.menu = "build2"; card(); } };
-      b[6] = { key: "G", glyph: "gather", tip: "Gather ore or vapour", act: () => { P.mode = { kind: "target", cmd: CMD.GATHER }; } };
-      b[7] = { key: "C", glyph: "ret", tip: "Bring the load home", act: () => order(CMD.RETURN) };
-      b[8] = { key: "B", glyph: "build", tip: "Build", act: () => { P.menu = "build"; card(); } };
-    }
+    if (s.some(i => T()[W.type[i]].cargo && PC.Orders.cargoUsed(W, i)))
+      b[8] = { key: "U", glyph: "unload", tip: "Unload", note: "Choose where: it flies there and sets them down.", act: () => { P.mode = { kind: "target", cmd: CMD.UNLOAD }; } };
     return b;
   }
   let cardButtons = [];
@@ -327,6 +351,8 @@
         if (W.stim[i]) html += `<p class="pc-stat pc-hot">Adrenal shot: ${Math.ceil(W.stim[i] / C.TICK)} s</p>`;
         if (W.matrix[i]) html += `<p class="pc-stat pc-hot">Defensive matrix: ${Math.ceil(W.matrix[i] / 4)} left</p>`;
         if (fl & F.CLOAKED) html += `<p class="pc-stat pc-hot">Cloaked</p>`;
+        if (t.cargo || t.bunker) html += `<p class="pc-stat">Carrying ${PC.Orders.cargoUsed(W, i)} of ${PC.Orders.capacity(W, i)}</p>`;
+        if (W.mode[i] === 4) html += `<p class="pc-stat pc-hot">In the air</p>`;
         if (fl & F.UNDER_CONSTRUCTION) html += `<p class="pc-prog"><span style="width:${W.prog[i] / Math.max(1, t.buildTicks) * 100}%"></span></p><p>Under construction</p>`;
         if (W.carry[i]) html += `<p class="pc-stat">Carrying ${W.amount[i]} ${W.carry[i] === 1 ? "ore" : "vapour"}</p>`;
         if (t.onVapour && !(fl & F.UNDER_CONSTRUCTION)) html += `<p class="pc-stat">${W.amount[i]} vapour left</p>`;
@@ -395,8 +421,8 @@
   function drawOver(g) {
     const W = P.W, now = performance.now();
     /* the build ghost */
-    if (P.mode && P.mode.kind === "place" && P.mouse && inView(P.mouse[0], P.mouse[1])) {
-      const t = T()[P.mode.type], [cx, cy] = siteAt(P.mouse[0], P.mouse[1], t), why = PC.Econ.canPlace(W, P.me, t, fp(cx), fp(cy), live(P.mode.worker));
+    if (P.mode && (P.mode.kind === "place" || P.mode.kind === "land") && P.mouse && inView(P.mouse[0], P.mouse[1])) {
+      const t = T()[P.mode.type], [cx, cy] = siteAt(P.mouse[0], P.mouse[1], t), why = PC.Econ.canPlace(W, P.me, t, fp(cx), fp(cy), P.mode.worker ? live(P.mode.worker) : -1);
       const fr = Sp.frame(t.art, "idle", 0, 0);
       const sx = Math.round(cx - V.camX + V.view.x), sy = Math.round(cy - V.camY + V.view.y);
       if (fr && fr.r && fr.r[2]) { g.globalAlpha = 0.55; g.drawImage(PC.Sheets.sheet(fr.sheet, P.me), fr.r[0], fr.r[1], fr.r[2], fr.r[3], sx - fr.r[4], sy - fr.r[5], fr.r[2], fr.r[3]); g.globalAlpha = 1; }
@@ -570,6 +596,12 @@
       if (!shift) { P.mode = null; P.menu = "main"; card(); }
       return;
     }
+    if (m.kind === "scan") { order(CMD.ABILITY, { tgt: PC.Orders.ABILITY.scan, x, y }, selSlots().filter(i => mine(i))); flash(wx, wy, "#54f2ff"); P.mode = null; card(); return; }
+    if (m.kind === "land") {
+      const t = T()[m.type], [cx, cy] = siteAt(P.mouse[0], P.mouse[1], t);
+      PC.Orders.issue(W, { t: W.hdr[0] + 1, p: P.me, k: CMD.LAND, u: [m.b], x: fp(cx), y: fp(cy) });
+      flash(cx, cy, "#4ade6a"); P.mode = null; card(); return;
+    }
     if (m.kind === "ability") {
       const j = pick(wx, wy);
       if (j < 0 || W.owner[j] !== P.me) { say("Choose one of your own units."); return; }
@@ -579,7 +611,7 @@
     if (m.kind === "rally") { const j = pick(wx, wy); order(CMD.RALLY, { x, y, tgt: j >= 0 ? PC.World.id(W, j) : 0 }, selSlots().filter(i => W.flags[i] & F.BUILDING && mine(i))); P.mode = null; card(); return; }
     const j = pick(wx, wy);
     if (m.cmd === CMD.ATTACK) order(CMD.ATTACK, j >= 0 && W.owner[j] !== P.me ? { tgt: PC.World.id(W, j), q: shift } : { x, y, q: shift });
-    else if (m.cmd === CMD.GATHER) { if (j >= 0) order(CMD.GATHER, { tgt: PC.World.id(W, j), q: shift }); }
+    else if (m.cmd === CMD.GATHER || m.cmd === CMD.REPAIR) { if (j >= 0) order(m.cmd, { tgt: PC.World.id(W, j), q: shift }); }
     else order(m.cmd, { x, y, q: shift });
     flash(wx, wy, m.cmd === CMD.ATTACK ? "#ff5266" : "#4ade6a");
     if (!shift) { P.mode = null; card(); }

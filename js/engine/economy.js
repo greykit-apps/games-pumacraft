@@ -55,7 +55,7 @@ globalThis.PC = globalThis.PC || {};
   /* ---- placement ---- */
   /** Whether player p may put a building of type t centred on (cx, cy); the
    * reason it may not, as an error word, if not. builder may stand on the site. */
-  E.canPlace = (W, p, t, cx, cy, builder = -1) => {
+  E.canPlace = (W, p, t, cx, cy, builder = -1, self = -1) => {
     const m = W.map, fw = t.foot[0], fh = t.foot[1];
     const tx = Math.floor(cx / C.TILE_FP - fw / 2 + 0.5), ty = Math.floor(cy / C.TILE_FP - fh / 2 + 0.5);
     if (tx < 0 || ty < 0 || tx + fw > m.w || ty + fh > m.h) return "place";
@@ -111,7 +111,7 @@ globalThis.PC = globalThis.PC || {};
     let best = -1, bestD = Infinity;
     for (let j = 0; j < C.MAX_UNITS; j++) {
       const f = W.flags[j];
-      if (!(f & F.ALIVE) || (f & F.UNDER_CONSTRUCTION) || W.owner[j] !== W.owner[i] || !T()[W.type[j]].dropoff) continue;
+      if (!(f & F.ALIVE) || (f & F.UNDER_CONSTRUCTION) || W.mode[j] === 4 || W.owner[j] !== W.owner[i] || !T()[W.type[j]].dropoff) continue;
       const d = Fx.len(W.x[j] - W.x[i], W.y[j] - W.y[i]);
       if (d < bestD) { bestD = d; best = j; }
     }
@@ -233,6 +233,25 @@ globalThis.PC = globalThis.PC || {};
       else { W.facing[i] = Fx.heading(W.x[b] - W.x[i], W.y[b] - W.y[i]); if ((W.hdr[0] + i) % 16 === 0) W.ev.push(["weld", i, b]); }
       return;
     }
+    if (kind === ORD.REPAIR) {
+      /* mend a machine or a building of its own: a little at a time, paid for in ore, a third of what it cost to make, by the health mended */
+      const j = Wo.live(W, W.oT[s]), tj = j >= 0 ? T()[W.type[j]] : null;
+      if (!tj || W.owner[j] !== W.owner[i] || j === i || !(tj.mech || tj.kind === "building") || (W.flags[j] & F.UNDER_CONSTRUCTION) || W.hp[j] >= tj.hp) { PC.Orders.done(W, i); return; }
+      if (PC.Combat.gap(W, i, j) > NEAR) {
+        if (Fx.len(W.goalX[i] - W.x[j], W.goalY[i] - W.y[j]) > C.TILE_FP || !(W.flags[i] & F.MOVING)) PC.Orders.goTo(W, i, W.x[j], W.y[j]);
+        if (PC.Orders.walk(W, i, t) && PC.Combat.gap(W, i, j) > 3 * NEAR) PC.Orders.goTo(W, i, W.x[j], W.y[j]);
+        return;
+      }
+      W.flags[i] &= ~F.MOVING;
+      W.facing[i] = Fx.heading(W.x[j] - W.x[i], W.y[j] - W.y[i]);
+      if ((W.hdr[0] + i) % 8) return;
+      const heal = Math.min(tj.hp - W.hp[j], Math.max(4, Math.floor(tj.hp * 8 / Math.max(240, tj.buildTicks)))), p = W.owner[i];
+      const ore = Math.floor((tj.cost[0] * heal + 3 * tj.hp - 1) / (3 * tj.hp));
+      if (W.ore[p] < ore) { err(W, p, "ore", i); PC.Orders.done(W, i); return; }
+      W.ore[p] -= ore; W.hp[j] += heal;
+      W.ev.push(["weld", i, j]);
+      return;
+    }
     /* an order this build does not know yet: drop it rather than hang */
     PC.Orders.done(W, i);
   };
@@ -345,7 +364,7 @@ globalThis.PC = globalThis.PC || {};
     const TT = T();
     for (let k = 0; k < count; k++) {
       const b = order[k], f = W.flags[b];
-      if (!(f & F.BUILDING) || !(f & F.ALIVE)) continue;
+      if (!(f & F.BUILDING) || !(f & F.ALIVE) || W.mode[b] === 4) continue;   /* a building in the air trains nothing */
       const t = TT[W.type[b]], p = W.owner[b];
       if (f & F.UNDER_CONSTRUCTION) {
         const w = Wo.live(W, W.target[b]);

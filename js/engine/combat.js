@@ -72,7 +72,7 @@ globalThis.PC = globalThis.PC || {};
   K.acquire = (W, i, r) => {
     let best = -1, bestD = Infinity;
     K.near(W, W.x[i], W.y[i], r + 4 * C.TILE_FP, j => {
-      if (j === i || !(W.flags[j] & F.ALIVE) || !hostile(W, i, j)) return;
+      if (j === i || !(W.flags[j] & F.ALIVE) || (W.flags[j] & (F.INSIDE | F.EFFECT)) || !hostile(W, i, j)) return;
       const w = K.weapon(W, i, j);
       if (!w || !PC.Vision.seesUnit(W, W.owner[i], j)) return;
       const d = K.gap(W, i, j);
@@ -125,13 +125,13 @@ globalThis.PC = globalThis.PC || {};
    */
   K.fight = (W, i, tid, chase) => {
     const j = Wo.live(W, tid);
-    if (j < 0 || !(W.flags[j] & F.ALIVE)) return false;
+    if (j < 0 || !(W.flags[j] & F.ALIVE) || (W.flags[j] & (F.INSIDE | F.EFFECT))) return false;
     const w = K.weapon(W, i, j);
     if (!w || !PC.Vision.seesUnit(W, W.owner[i], j)) return false;
-    const gap = K.gap(W, i, j), t = PC.Data.types[W.type[i]];
+    const gap = K.gap(W, i, j), t = PC.Data.types[W.type[i]], reach = w.range + (W.flags[i] & F.INSIDE ? PC.Orders.bunkerReach(W, i) : 0);
     if (gap < w.min) return false;   /* too close for this gun (a dug-in howitzer's) */
     W.facing[i] = Fx.heading(W.x[j] - W.x[i], W.y[j] - W.y[i]);
-    if (gap <= w.range) {
+    if (gap <= reach) {
       W.flags[i] &= ~F.MOVING; W.pathLen[i] = 0;
       if (W.cd[i] === 0) {
         W.cd[i] = W.stim[i] ? w.cd >> 1 : w.cd;
@@ -158,7 +158,7 @@ globalThis.PC = globalThis.PC || {};
     const [r1, r2, r3] = w.splash, ground = !(W.flags[j] & F.AIR);
     K.near(W, x, y, r3, k => {
       /* most splash spares friends; a siege shell spares no one but the gun that fired it */
-      if (k === j || k === i || !(W.flags[k] & F.ALIVE) || (W.flags[k] & F.RESOURCE) || (!w.friendly && !hostile(W, i, k))) return;
+      if (k === j || k === i || !(W.flags[k] & F.ALIVE) || (W.flags[k] & (F.RESOURCE | F.INSIDE | F.EFFECT)) || (!w.friendly && !hostile(W, i, k))) return;
       if (!(W.flags[k] & F.AIR) !== ground) return;
       const d = Math.max(0, Fx.len(W.x[k] - x, W.y[k] - y) - PC.Data.types[W.type[k]].r);
       const pct = d <= r1 ? 100 : d <= r2 ? 50 : d <= r3 ? 25 : 0;
@@ -171,6 +171,7 @@ globalThis.PC = globalThis.PC || {};
     const T = PC.Data.types, tick = W.hdr[0];
     for (let k = 0; k < count; k++) {
       const i = order[k];
+      if (W.flags[i] & F.EFFECT) { if (W.modeT[i] && --W.modeT[i] === 0) Wo.kill(W, i); continue; }
       if (W.cd[i]) W.cd[i]--;
       if (W.stim[i]) W.stim[i]--;
       const t = T[W.type[i]];
@@ -186,7 +187,7 @@ globalThis.PC = globalThis.PC || {};
   /** One tick of healer i: true while it has someone to mend. */
   K.mend = (W, i, t, chase) => {
     let j = Wo.live(W, W.target[i]);
-    const bio = k => (W.flags[k] & F.ALIVE) && PC.Data.types[W.type[k]].bio && W.hp[k] < PC.Data.types[W.type[k]].hp && !K.hostile(W, i, k) && W.owner[k] < C.MAX_PLAYERS && k !== i;
+    const bio = k => (W.flags[k] & F.ALIVE) && !(W.flags[k] & F.INSIDE) && PC.Data.types[W.type[k]].bio && W.hp[k] < PC.Data.types[W.type[k]].hp && !K.hostile(W, i, k) && W.owner[k] < C.MAX_PLAYERS && k !== i;
     if (j >= 0 && !bio(j)) { W.target[i] = 0; j = -1; }
     if (j < 0) {
       if ((W.hdr[0] + i) % 8 !== 0) return false;

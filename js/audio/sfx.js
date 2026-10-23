@@ -120,6 +120,8 @@
       else if (k === "die") { const t = T[e[4]], x = e[2] / C.ONE, y = e[3] / C.ONE; S.play(t.foot || t.size === 2 ? "dieBig" : "dieSmall", x, y); }
       else if (k === "built" && W.owner[a] === me) S.play("built");
       else if ((k === "trained" || k === "researched") && W.owner[a] === me) S.play(k === "researched" ? "built" : "trained");
+      else if ((k === "load" || k === "unload") && W.owner[a] === me) { const [x, y] = at(a); S.play("deposit", x, y); }
+      else if (k === "lift" || k === "scan") { const [x, y] = at(a); S.play(k === "scan" ? "matrix" : "siege", x, y); }
       else if (k === "cloak" || k === "matrix") { const [x, y] = at(a); if (PC.RenderSprites.shown(W, a)) S.play(k, x, y); }
       else if (k === "siege") { const [x, y] = at(a); S.play("siege", x, y); }
       else if (k === "stim") { const [x, y] = at(a); S.play("stim", x, y); }

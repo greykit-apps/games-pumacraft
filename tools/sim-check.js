@@ -415,6 +415,58 @@ for (let seed = 1; seed <= SEEDS; seed++) {
   void tower;
 }
 
+/* ---- carrying, repair, lift-off and the scan ---- */
+{
+  const PC = load(), C = PC.C, F = C.F, T = k => PC.Data.type(k), fp = v => Math.floor(v * C.TILE_FP);
+  const W = PC.Sim.create("proving", [{ faction: "a", team: 0 }, { faction: "a", team: 1 }], 51, { bases: true });
+  const id = i => PC.World.id(W, i), spawn = (k, p, x, y, built = true) => PC.World.spawn(W, T(k).id, p, fp(x), fp(y), built);
+  const run = n => PC.Sim.run(W, W.hdr[0] + n);
+  /* a Bunker holds four; those in it reach further */
+  const bunk = spawn("a_bunker", 0, 30, 40), squad = [0, 1, 2, 3, 4].map(k => spawn("a_trooper", 0, 27 + k * 0.6, 43));
+  PC.Orders.issue(W, { t: W.hdr[0], p: 0, k: C.CMD.LOAD, u: squad.map(id), tgt: id(bunk) });
+  run(120);
+  const inside = squad.filter(i => W.flags[i] & F.INSIDE).length;
+  if (inside !== 4) fail(`a Bunker took ${inside} troopers, not four`); else ok("a Bunker takes four troopers, and no fifth");
+  const gunIn = squad.find(i => W.flags[i] & F.INSIDE), foe = spawn("a_trooper", 1, 36.2, 40);
+  const reachIn = PC.Data.types[W.type[gunIn]].weapons[0].range + PC.Orders.bunkerReach(W, gunIn);
+  if (reachIn <= PC.Data.types[W.type[gunIn]].weapons[0].range) fail("a Bunker gives no extra reach");
+  run(48);
+  if (W.hp[foe] === T("a_trooper").hp && PC.World.live(W, id(foe)) >= 0) fail("troopers in a Bunker did not fire on a foe in their reach"); else ok("troopers in a Bunker fire out with its reach");
+  /* a Pelican falls with its load; a Bunker's spill out */
+  const pel = spawn("a_dropship", 0, 20, 46), riders = [0, 1].map(k => spawn("a_trooper", 0, 20 + k, 48));
+  PC.Orders.issue(W, { t: W.hdr[0], p: 0, k: C.CMD.LOAD, u: riders.map(id), tgt: id(pel) });
+  run(96);
+  if (!riders.every(i => W.flags[i] & F.INSIDE)) fail("two troopers did not board a Pelican");
+  else { PC.World.kill(W, pel); if (riders.some(i => W.flags[i] & F.ALIVE)) fail("troopers in a Pelican outlived it"); else ok("a Pelican's riders fall with it"); }
+  PC.World.kill(W, bunk);
+  const out = squad.filter(i => (W.flags[i] & F.ALIVE) && !(W.flags[i] & F.INSIDE)).length;
+  if (out < 4) fail(`a Bunker that fell left ${out} of its troopers standing`); else ok("a Bunker that falls throws its troopers out alive");
+  /* repair, for ore */
+  const dep = spawn("a_depot", 0, 12.5, 10), eng = spawn("a_engineer", 0, 12, 12.5);
+  W.hp[dep] = 1000; W.ore[0] = 500;
+  PC.Orders.issue(W, { t: W.hdr[0], p: 0, k: C.CMD.REPAIR, u: [id(eng)], tgt: id(dep) });
+  run(240);
+  if (W.hp[dep] <= 1000 || W.ore[0] >= 500) fail(`an engineer repairing a depot brought it from 250 to ${W.hp[dep] / 4} for ${500 - W.ore[0]} ore`); else ok(`an engineer repaired ${(W.hp[dep] - 1000) / 4} health for ${500 - W.ore[0]} ore`);
+  /* lift off, fly, land */
+  const rax = spawn("a_barracks", 0, 5, 11.5), tile = PC.Map.tileAt(W.map, W.x[rax], W.y[rax]);
+  PC.Orders.issue(W, { t: W.hdr[0], p: 0, k: C.CMD.LIFT, u: [id(rax)] });
+  run(2);
+  if (W.mode[rax] !== 4 || W.walk[tile] !== PC.Map.FULL) fail("a lifted barracks still holds its ground"); else ok("a barracks lifts off and frees its ground");
+  PC.Orders.issue(W, { t: W.hdr[0], p: 0, k: C.CMD.LAND, u: [id(rax)], x: fp(14), y: fp(21.5) });   /* a flying building is slow: a short hop */
+  run(24 * 40);
+  if (W.mode[rax] !== 0 || PC.Map.tileAt(W.map, W.x[rax], W.y[rax]) === tile || W.walk[PC.Map.tileAt(W.map, W.x[rax], W.y[rax])]) fail(`a barracks sent to land is in mode ${W.mode[rax]}`); else ok("a barracks flies and lands where it is sent");
+  /* the scan: it sees, and detects, far from anything of ours, then goes */
+  let post = -1; for (let i = 0; i < C.MAX_UNITS; i++) if ((W.flags[i] & F.ALIVE) && W.owner[i] === 0 && PC.Data.types[W.type[i]].key === "a_command") post = i;
+  W.energy[post] = 60;
+  PC.Orders.issue(W, { t: W.hdr[0], p: 0, k: C.CMD.ABILITY, u: [id(post)], tgt: PC.Orders.ABILITY.scan, x: fp(55), y: fp(56) });
+  run(2);
+  if (!PC.Vision.sees(W, 0, fp(55), fp(56)) || !PC.Vision.detects(W, 0, fp(55), fp(56)) || W.energy[post] !== 10) fail("a scanner sweep did not see and detect the enemy main for its 50 energy");
+  else ok("a scanner sweep sees and detects for 50 energy");
+  run(250);
+  if (PC.Vision.sees(W, 0, fp(55), fp(56))) fail("a scanner sweep outlasted its ten seconds"); else ok("a scanner sweep ends after ten seconds");
+  invariants(PC, W, "carrying, repair, lift-off and the scan");
+}
+
 /* ---- the computer against itself ---- */
 {
   const BOTS = [{ faction: "a", team: 0, ai: "normal" }, { faction: "a", team: 1, ai: "normal" }];
