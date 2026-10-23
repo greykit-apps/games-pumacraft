@@ -25,6 +25,7 @@ const R = ART.PC.Recipes;
 let bad = 0, checked = 0;
 const fail = m => { console.error("FAIL " + m); bad++; };
 for (const t of PC.Data.types.slice(1)) {
+  if (t.kind === "effect") continue;   /* an effect (a scan's eye) is never drawn */
   checked++;
   const r = R.byKey[t.art];
   if (!r) fail(`${t.key}: no recipe "${t.art}" in js/art/recipes/`);

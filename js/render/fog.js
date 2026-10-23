@@ -66,7 +66,7 @@
       }
     }
     for (let i = 0; i < C.MAX_UNITS; i++) {
-      if (!(W.flags[i] & F.ALIVE) || !PC.RenderSprites.shown(W, i)) continue;
+      if (!(W.flags[i] & F.ALIVE) || (W.flags[i] & (F.INSIDE | F.EFFECT)) || !PC.RenderSprites.shown(W, i)) continue;
       const p = W.owner[i], t = PC.Data.types[W.type[i]];
       mg.fillStyle = p === me ? "#4ade6a" : p >= C.MAX_PLAYERS ? "#ffb000" : (W.players[p] && W.players[me] && W.players[p].team === W.players[me].team) ? "#ffe040" : "#ff5266";
       const d = t.foot ? Math.max(2, Math.round(t.foot[0] * s)) : 2;
